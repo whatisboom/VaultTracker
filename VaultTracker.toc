@@ -1,0 +1,16 @@
+## Interface: 110200
+## Title: VaultTracker
+## Notes: Account-wide Great Vault nudge tracker
+## Author: brandon
+## Version: 0.1.0
+## SavedVariables: VaultTrackerDB
+## X-Category: Information
+
+Libs\embeds.xml
+Derived.lua
+Attention.lua
+Config.lua
+Scanner.lua
+Broker.lua
+Roster.lua
+Core.lua
