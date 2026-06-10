@@ -27,9 +27,14 @@ function Roster:Build()
   local Derived = ns.Derived
   local frame = AceGUI:Create("Frame")
   frame:SetTitle("VaultTracker — Roster")
-  frame:SetLayout("List")
+  frame:SetLayout("Fill")
   frame:SetCallback("OnClose", function(widget) AceGUI:Release(widget); Roster.frame = nil end)
   self.frame = frame
+
+  -- A single ScrollFrame fills the window so a long roster scrolls.
+  local scroll = AceGUI:Create("ScrollFrame")
+  scroll:SetLayout("List")
+  frame:AddChild(scroll)
 
   -- Sort: eligible first, then by name.
   local keys = {}
@@ -59,13 +64,14 @@ function Roster:Build()
       lbl:SetText(("%s%-8s|r  %s"):format(dim, TRACK_LABEL[tk], body))
       g:AddChild(lbl)
     end
-    frame:AddChild(g)
+    scroll:AddChild(g)
   end
 end
 
 function Roster:Toggle()
   if self.frame then
-    self.frame:Hide()  -- triggers OnClose -> Release
+    AceGUI:Release(self.frame)
+    self.frame = nil
   else
     self:Build()
   end
