@@ -50,7 +50,76 @@ do
   eq(Derived.currentPeriod(char), partial, "currentPeriod returns the current weekId period")
 end
 -- ============ Derived tests filled in Task 3 ============
--- ============ Attention tests filled in Task 5 ============
+local Attention = ns.Attention
+do
+  local HOUR = 3600
+  local settings = {
+    thresholdHours = 48,
+    triggers = { banked = true, untouched = true, incomplete = true },
+  }
+  local inWindow = 10 * HOUR     -- inside 48h
+  local outWindow = 100 * HOUR   -- outside 48h
+
+  -- banked loot: counts regardless of window or eligibility
+  local chars = {
+    ["A-X"] = F.char({ name="A", realm="X", hasPendingLoot=true, eligible=false,
+                       period=F.maxedPeriod() }),
+  }
+  local list = Attention.build(chars, settings, outWindow)
+  eq(#list, 1, "banked counts outside window")
+  eq(list[1].severity, "red", "banked is red severity")
+  eq(list[1].reasons[1], "banked", "banked reason")
+
+  -- untouched eligible char inside window -> amber
+  chars = {
+    ["B-X"] = F.char({ name="B", realm="X", eligible=true, period=F.untouchedPeriod() }),
+  }
+  eq(#Attention.build(chars, settings, inWindow), 1, "untouched eligible in-window counts")
+  eq(#Attention.build(chars, settings, outWindow), 0, "untouched outside window does not count")
+
+  -- ineligible untouched char never counts (the bank-alt case)
+  chars = {
+    ["C-X"] = F.char({ name="C", realm="X", eligible=false, period=F.untouchedPeriod() }),
+  }
+  eq(#Attention.build(chars, settings, inWindow), 0, "ineligible untouched stays silent")
+
+  -- incomplete (partial) eligible char inside window -> amber, reason incomplete
+  chars = {
+    ["D-X"] = F.char({ name="D", realm="X", eligible=true, period=F.partialPeriod() }),
+  }
+  list = Attention.build(chars, settings, inWindow)
+  eq(list[1].reasons[1], "incomplete", "partial eligible -> incomplete")
+
+  -- maxed eligible char -> nothing
+  chars = {
+    ["E-X"] = F.char({ name="E", realm="X", eligible=true, period=F.maxedPeriod() }),
+  }
+  eq(#Attention.build(chars, settings, inWindow), 0, "maxed needs no attention")
+
+  -- a char both banked and untouched -> single entry, red, two reasons
+  chars = {
+    ["F-X"] = F.char({ name="F", realm="X", hasPendingLoot=true, eligible=true,
+                       period=F.untouchedPeriod() }),
+  }
+  list = Attention.build(chars, settings, inWindow)
+  eq(#list, 1, "banked+untouched is one entry")
+  eq(list[1].severity, "red", "banked+untouched is red")
+  eq(#list[1].reasons, 2, "banked+untouched has two reasons")
+
+  -- triggers toggle off suppresses
+  local off = { thresholdHours = 48, triggers = { banked=false, untouched=true, incomplete=true } }
+  chars = { ["G-X"] = F.char({ name="G", realm="X", hasPendingLoot=true, period=F.maxedPeriod() }) }
+  eq(#Attention.build(chars, off, inWindow), 0, "banked trigger off suppresses banked")
+
+  -- summary: red beats amber, count is distinct chars
+  chars = {
+    ["H-X"] = F.char({ name="H", realm="X", hasPendingLoot=true, period=F.maxedPeriod() }),
+    ["I-X"] = F.char({ name="I", realm="X", eligible=true, period=F.untouchedPeriod() }),
+  }
+  local s = Attention.summary(Attention.build(chars, settings, inWindow))
+  eq(s.count, 2, "summary counts 2 chars")
+  eq(s.color, "red", "summary color is red when any banked")
+end
 
 print(("\n%d passed, %d failed"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
