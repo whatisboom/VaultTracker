@@ -2,6 +2,19 @@ local ADDON, ns = ...
 local Derived = {}
 ns.Derived = Derived
 
+local WEEK = 7 * 24 * 3600
+
+-- Stable period key for the current weekly-reward period.
+-- now = epoch seconds (time()); secondsToReset = C_DateAndTime.GetSecondsUntilWeeklyReset().
+-- The two terms reconstruct the next reset instant; we snap it to the minute
+-- grid (weekly resets land on minute boundaries) so sub-minute skew between the
+-- two integer clocks can't shift the key and break the periods[key] overwrite.
+function Derived.periodKey(now, secondsToReset)
+  local resetAt = now + (secondsToReset or 0)
+  resetAt = math.floor((resetAt + 30) / 60) * 60
+  return resetAt - WEEK
+end
+
 -- track: array of 3 tiers { threshold, progress, level, rewardIlvl }
 function Derived.slotsUnlocked(track)
   local n = 0

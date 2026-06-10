@@ -44,11 +44,10 @@ function Scanner:Scan()
   local chars = ns.db.global.characters
   local key, name, realm = characterKey()
 
-  -- Period key = start epoch of the current period = next reset minus one week.
-  local secondsToReset = C_DateAndTime.GetSecondsUntilWeeklyReset() or 0
+  -- Period key = current period start, snapped to the minute grid so clock skew
+  -- can't jitter the key and break the periods[key] overwrite (see Derived.periodKey).
   local now = time()
-  local WEEK = 7 * 24 * 3600
-  local currentWeekId = (now + secondsToReset) - WEEK
+  local currentWeekId = Derived.periodKey(now, C_DateAndTime.GetSecondsUntilWeeklyReset())
 
   local period = { tracks = {
     raid = readTrack(TRACKS.raid),
