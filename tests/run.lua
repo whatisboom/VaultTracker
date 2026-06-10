@@ -48,6 +48,16 @@ do
 
   local char = F.char({ weekId = 1000, period = partial })
   eq(Derived.currentPeriod(char), partial, "currentPeriod returns the current weekId period")
+
+  -- periodKey: stable under sub-minute clock skew between the two integer clocks
+  eq(Derived.periodKey(1000000, 100000), Derived.periodKey(1000001, 99999),
+     "periodKey stable under 1s read skew (now +1, countdown -1)")
+  eq(Derived.periodKey(1000000, 100000), Derived.periodKey(1000000, 99999),
+     "periodKey stable under 1s countdown jitter")
+  eq(Derived.periodKey(1000000, 100000), 495180, "periodKey snaps to minute grid minus a week")
+  -- distinct weeks yield keys exactly one WEEK apart
+  eq(Derived.periodKey(1000000, 100000 + 7*24*3600) - Derived.periodKey(1000000, 100000),
+     7*24*3600, "consecutive periods are one WEEK apart")
 end
 -- ============ Derived tests filled in Task 3 ============
 local Attention = ns.Attention
