@@ -119,6 +119,29 @@ do
   local s = Attention.summary(Attention.build(chars, settings, inWindow))
   eq(s.count, 2, "summary counts 2 chars")
   eq(s.color, "red", "summary color is red when any banked")
+
+  -- sort comparator: red before amber, then by name ascending
+  chars = {
+    ["Zed-X"] = F.char({ name="Zed", realm="X", hasPendingLoot=true, period=F.maxedPeriod() }),
+    ["Bob-X"] = F.char({ name="Bob", realm="X", eligible=true, period=F.untouchedPeriod() }),
+    ["Ann-X"] = F.char({ name="Ann", realm="X", eligible=true, period=F.untouchedPeriod() }),
+  }
+  list = Attention.build(chars, settings, inWindow)
+  eq(list[1].name, "Zed", "sort: red entry first despite Z name")
+  eq(list[1].severity, "red", "sort: first is red")
+  eq(list[2].name, "Ann", "sort: amber by name, Ann before Bob")
+  eq(list[3].name, "Bob", "sort: Bob last")
+
+  -- window boundary + nil contract
+  chars = { ["B-X"] = F.char({ name="B", realm="X", eligible=true, period=F.untouchedPeriod() }) }
+  eq(#Attention.build(chars, settings, 48 * HOUR), 1, "exactly 48h is inside window (inclusive)")
+  eq(#Attention.build(chars, settings, nil), 0, "nil secondsToReset is out of window")
+
+  -- untouched takes priority over incomplete: exactly one reason, not both
+  chars = { ["U-X"] = F.char({ name="U", realm="X", eligible=true, period=F.untouchedPeriod() }) }
+  list = Attention.build(chars, settings, inWindow)
+  eq(#list[1].reasons, 1, "untouched eligible has exactly one reason")
+  eq(list[1].reasons[1], "untouched", "untouched, not incomplete")
 end
 
 print(("\n%d passed, %d failed"):format(passed, failed))
