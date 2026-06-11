@@ -1,4 +1,4 @@
-## Interface: 110200
+## Interface: 120005
 ## Title: VaultTracker
 ## Notes: Account-wide Great Vault nudge tracker
 ## Author: brandon
