@@ -1,5 +1,12 @@
-# macOS
+# OS / editor junk
 .DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+*.swp
+*~
+*.bak
+*.orig
 
 # Brainstorm visual-companion mockups (local only)
 .superpowers/
