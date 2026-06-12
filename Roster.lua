@@ -23,10 +23,10 @@ end
 -- Layout: column x-offsets from the frame's left; tracks hold 3 fixed-width slots.
 local COLS_X = { name = 40, ilvl = 160, raid = 208, dungeon = 330, world = 452 }
 local TRACKS = { "raid", "dungeon", "world" }
-local TRACK_LABEL = { raid = "Raid", dungeon = "Dungeon", world = "World" }
+local TRACK_LABEL = { raid = ns.L.TRACK_RAID, dungeon = ns.L.TRACK_DUNGEON, world = ns.L.TRACK_WORLD }
 local HEADERS = {
-  { key = "name", text = "Character" }, { key = "ilvl", text = "ilvl" },
-  { key = "raid", text = "Raid" }, { key = "dungeon", text = "Dungeon" }, { key = "world", text = "World" },
+  { key = "name", text = ns.L.ROSTER_COL_NAME }, { key = "ilvl", text = ns.L.ROSTER_COL_ILVL },
+  { key = "raid", text = ns.L.TRACK_RAID }, { key = "dungeon", text = ns.L.TRACK_DUNGEON }, { key = "world", text = ns.L.TRACK_WORLD },
 }
 local FRAME_W   = 588
 local ROW_INSET = 8
@@ -38,11 +38,11 @@ local HEAD_Y    = -42
 local ROW0_Y    = -64
 
 local function ago(ts)
-  if not ts then return "never" end
+  if not ts then return ns.L.TIME_NEVER end
   local s = time() - ts
-  if s < 3600 then return ("%dm ago"):format(math.max(1, math.floor(s / 60))) end
-  if s < 86400 then return ("%dh ago"):format(math.floor(s / 3600)) end
-  return ("%dd ago"):format(math.floor(s / 86400))
+  if s < 3600 then return (ns.L.TIME_M):format(math.max(1, math.floor(s / 60))) end
+  if s < 86400 then return (ns.L.TIME_H):format(math.floor(s / 3600)) end
+  return (ns.L.TIME_D):format(math.floor(s / 86400))
 end
 
 local function setRowIcon(tex, char)
@@ -62,23 +62,23 @@ end
 
 -- Tooltip content for one slot. World omits a "source" line until `level` is verified.
 local function fillSlotTooltip(tt, tk, tier, idx)
-  tt:AddLine(("%s — Slot %d"):format(TRACK_LABEL[tk], idx), 1, 0.82, 0)
+  tt:AddLine((ns.L.ROSTER_SLOT):format(TRACK_LABEL[tk], idx), 1, 0.82, 0)
   if tier.progress >= tier.threshold then
     if tk == "dungeon" and (tier.level or 0) > 0 then
-      tt:AddLine(("Mythic+ %d"):format(tier.level), 1, 1, 1)
+      tt:AddLine((ns.L.ROSTER_MPLUS):format(tier.level), 1, 1, 1)
     elseif tk == "raid" and tier.raidString then
       tt:AddLine(tier.raidString, 1, 1, 1)
     end
     if (tier.rewardIlvl or 0) > 0 then
-      tt:AddLine(("Reward: item level %d"):format(tier.rewardIlvl), 0.4, 0.85, 0.4)
+      tt:AddLine((ns.L.ROSTER_REWARD):format(tier.rewardIlvl), 0.4, 0.85, 0.4)
     else
-      tt:AddLine("Reward: pending", 0.7, 0.7, 0.7)
+      tt:AddLine(ns.L.ROSTER_REWARD_PENDING, 0.7, 0.7, 0.7)
     end
   else
-    tt:AddLine(("Progress: %d / %d"):format(tier.progress, tier.threshold), 1, 1, 1)
-    tt:AddLine(("%d more to unlock"):format(tier.threshold - tier.progress), 0.85, 0.65, 0.2)
+    tt:AddLine((ns.L.ROSTER_PROGRESS):format(tier.progress, tier.threshold), 1, 1, 1)
+    tt:AddLine((ns.L.ROSTER_UNLOCK_MORE):format(tier.threshold - tier.progress), 0.85, 0.65, 0.2)
     if tk == "raid" and tier.raidString then
-      tt:AddLine("This week: " .. tier.raidString, 0.7, 0.7, 0.7)
+      tt:AddLine(ns.L.ROSTER_THISWEEK .. tier.raidString, 0.7, 0.7, 0.7)
     end
   end
 end
@@ -114,7 +114,7 @@ end
 
 local function resetText()
   local secs = C_DateAndTime.GetSecondsUntilWeeklyReset() or 0
-  return ("Resets in %dd %dh"):format(math.floor(secs / 86400), math.floor((secs % 86400) / 3600))
+  return (ns.L.ROSTER_RESETS):format(math.floor(secs / 86400), math.floor((secs % 86400) / 3600))
 end
 
 function Roster:CreateFrame()
@@ -136,7 +136,7 @@ function Roster:CreateFrame()
 
   local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   title:SetPoint("TOP", 0, -12)
-  title:SetText("VaultTracker — Roster")
+  title:SetText(ns.L.ROSTER_TITLE)
 
   f.countdown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   f.countdown:SetPoint("TOPLEFT", 16, -16)
@@ -245,9 +245,9 @@ function Roster:Refresh()
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:AddLine(("|c%s%s-%s|r"):format(classColor(char.class), char.name or "?", char.realm or "?"))
       if char.spec then GameTooltip:AddLine(char.spec, 0.8, 0.8, 0.8) end
-      GameTooltip:AddLine(("Equipped item level %d"):format(char.ilvl or 0), 1, 0.82, 0)
-      GameTooltip:AddLine("Last scanned: " .. ago(char.lastScan), 0.6, 0.6, 0.6)
-      if dim then GameTooltip:AddLine("Not yet eligible (no vault progress)", 0.6, 0.5, 0.4) end
+      GameTooltip:AddLine((ns.L.ROSTER_EQUIPPED):format(char.ilvl or 0), 1, 0.82, 0)
+      GameTooltip:AddLine(ns.L.ROSTER_SCANNED .. ago(char.lastScan), 0.6, 0.6, 0.6)
+      if dim then GameTooltip:AddLine(ns.L.ROSTER_INELIGIBLE, 0.6, 0.5, 0.4) end
       GameTooltip:Show()
     end)
     row.nameFrame:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
@@ -269,7 +269,7 @@ function Roster:Refresh()
           end)
           sf:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
         else
-          sf.text:SetText(j == 1 and "|cff6a6453—|r" or "")
+          sf.text:SetText(j == 1 and "|cff6a6453-|r" or "")
           sf:EnableMouse(false)
           sf:SetScript("OnEnter", nil)
           sf:SetScript("OnLeave", nil)

@@ -3,3 +3,7 @@
 
 # Brainstorm visual-companion mockups (local only)
 .superpowers/
+
+# Vendored libraries are fetched at build time via .pkgmeta externals.
+# Ignore the lib folders but keep our own Libs/embeds.xml tracked.
+Libs/*/

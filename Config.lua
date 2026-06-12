@@ -36,12 +36,13 @@ end
 
 local function options()
   local s = ns.db.global.settings
+  local L = ns.L
   return {
     type = "group",
     name = "VaultTracker",
     args = {
       minimap = {
-        type = "toggle", order = 0, width = "full", name = "Show minimap icon",
+        type = "toggle", order = 0, width = "full", name = L.OPT_MINIMAP,
         get = function() return not s.minimap.hide end,
         set = function(_, v)
           s.minimap.hide = not v
@@ -49,57 +50,57 @@ local function options()
           if v then DBIcon:Show("VaultTracker") else DBIcon:Hide("VaultTracker") end
         end,
       },
-      remHeader = { type = "header", order = 1, name = "Reminders" },
+      remHeader = { type = "header", order = 1, name = L.OPT_HDR_REMINDERS },
       banked = {
-        type = "toggle", order = 1.1, width = "full", name = "Unclaimed banked loot",
-        desc = "Banked loot has no reset deadline — reminds you whenever any character has unclaimed loot waiting.",
+        type = "toggle", order = 1.1, width = "full", name = L.OPT_BANKED,
+        desc = L.OPT_BANKED_DESC,
         get = function() return s.triggers.banked end,
         set = function(_, v) s.triggers.banked = v; ns.Broker:Update() end,
       },
       beforeReset = {
-        type = "group", order = 1.5, inline = true, name = "Weekly warnings",
+        type = "group", order = 1.5, inline = true, name = L.OPT_WEEKLY,
         args = {
           thresholdDays = {
-            type = "select", order = 4, width = 1.2, name = "How many days before reset?",
-            desc = "How early before weekly reset untouched/incomplete vaults begin counting toward the reminder.",
+            type = "select", order = 4, width = 1.2, name = L.OPT_THRESHOLD,
+            desc = L.OPT_THRESHOLD_DESC,
             values = {
-              [1] = "1 day",  [2] = "2 days", [3] = "3 days", [4] = "4 days",
-              [5] = "5 days", [6] = "6 days", [7] = "7 days (all week)",
+              [1] = L.OPT_DAYS_1, [2] = L.OPT_DAYS_2, [3] = L.OPT_DAYS_3, [4] = L.OPT_DAYS_4,
+              [5] = L.OPT_DAYS_5, [6] = L.OPT_DAYS_6, [7] = L.OPT_DAYS_7,
             },
             sorting = { 1, 2, 3, 4, 5, 6, 7 },
             get = function() return math.max(1, math.min(7, math.floor(s.thresholdHours / 24 + 0.5))) end,
             set = function(_, v) s.thresholdHours = v * 24; ns.Broker:Update() end,
           },
-          remDesc = { type = "description", order = 1, name = "Remind me about:" },
+          remDesc = { type = "description", order = 1, name = L.OPT_REMIND_ABOUT },
           untouched = {
-            type = "toggle", order = 2, name = "Untouched vaults",
+            type = "toggle", order = 2, name = L.OPT_UNTOUCHED,
             get = function() return s.triggers.untouched end,
             set = function(_, v) s.triggers.untouched = v; ns.Broker:Update() end,
           },
           incomplete = {
-            type = "toggle", order = 3, name = "Incomplete vaults",
+            type = "toggle", order = 3, name = L.OPT_INCOMPLETE,
             get = function() return s.triggers.incomplete end,
             set = function(_, v) s.triggers.incomplete = v; ns.Broker:Update() end,
           },
         },
       },
 
-      alertHeader = { type = "header", order = 10, name = "Alerts" },
+      alertHeader = { type = "header", order = 10, name = L.OPT_HDR_ALERTS },
       chatSummary = {
-        type = "toggle", order = 11, width = "full", name = "Login chat summary",
-        desc = "Print a who-needs-attention summary to chat on each login/reload.",
+        type = "toggle", order = 11, width = "full", name = L.OPT_CHATSUMMARY,
+        desc = L.OPT_CHATSUMMARY_DESC,
         get = function() return s.chatSummary end,
         set = function(_, v) s.chatSummary = v end,
       },
       bankedSound = {
-        type = "toggle", order = 12, width = "full", name = "Sound when banked loot is waiting",
-        desc = "Play a sound on login/reload if any character has unclaimed banked loot.",
+        type = "toggle", order = 12, width = "full", name = L.OPT_BANKEDSOUND,
+        desc = L.OPT_BANKEDSOUND_DESC,
         get = function() return s.bankedSound end,
         set = function(_, v) s.bankedSound = v; if v then Config:PlayAlert() end end,
       },
       sound = {
-        type = "select", order = 13, width = 1.5, name = "Alert sound",
-        desc = "Sound played when banked loot is waiting (LibSharedMedia). Picking one previews it.",
+        type = "select", order = 13, width = 1.5, name = L.OPT_SOUND,
+        desc = L.OPT_SOUND_DESC,
         disabled = function() return not s.bankedSound end,
         values = function()
           local v = {}
@@ -110,45 +111,45 @@ local function options()
         set = function(_, v) s.sound = v; Config:PlayAlert() end,
       },
       soundPreview = {
-        type = "execute", order = 13.5, width = "half", name = "Preview",
-        desc = "Play the selected alert sound again.",
+        type = "execute", order = 13.5, width = "half", name = L.OPT_PREVIEW,
+        desc = L.OPT_PREVIEW_DESC,
         disabled = function() return not s.bankedSound end,
         func = function() Config:PlayAlert() end,
       },
       soundScope = {
-        type = "select", order = 14, width = 1.5, name = "Play the sound for",
-        desc = "Alert when any of your characters has banked loot, or only the one you log in on.",
+        type = "select", order = 14, width = 1.5, name = L.OPT_SOUNDSCOPE,
+        desc = L.OPT_SOUNDSCOPE_DESC,
         disabled = function() return not s.bankedSound end,
-        values = { any = "Any character (account-wide)", current = "That character only" },
+        values = { any = L.OPT_SCOPE_ANY, current = L.OPT_SCOPE_CURRENT },
         get = function() return s.soundScope end,
         set = function(_, v) s.soundScope = v end,
       },
 
 
-      dataHeader = { type = "header", order = 30, name = "Data" },
+      dataHeader = { type = "header", order = 30, name = L.OPT_HDR_DATA },
       autoPrune = {
-        type = "toggle", order = 31, width = "full", name = "Auto-remove stale characters",
-        desc = "Drop characters not scanned within the number of weeks below.",
+        type = "toggle", order = 31, width = "full", name = L.OPT_AUTOPRUNE,
+        desc = L.OPT_AUTOPRUNE_DESC,
         get = function() return s.autoPrune end,
         set = function(_, v) s.autoPrune = v end,
       },
       pruneWeeks = {
-        type = "range", order = 32, name = "Weeks before a character is stale",
+        type = "range", order = 32, name = L.OPT_PRUNEWEEKS,
         min = 1, max = 52, step = 1,
         disabled = function() return not s.autoPrune end,
         get = function() return s.pruneWeeks end,
         set = function(_, v) s.pruneWeeks = v end,
       },
       clearCache = {
-        type = "execute", order = 33, name = "Clear cache",
-        desc = "Wipe all cached characters. They repopulate as you log into them.",
-        confirm = true, confirmText = "Wipe all cached characters?",
+        type = "execute", order = 33, name = L.OPT_CLEARCACHE,
+        desc = L.OPT_CLEARCACHE_DESC,
+        confirm = true, confirmText = L.OPT_CLEARCACHE_CONFIRM,
         func = function() wipe(ns.db.global.characters); ns.Broker:Update() end,
       },
       resetSettings = {
-        type = "execute", order = 34, name = "Reset settings",
-        desc = "Reset all VaultTracker settings to defaults. Does not touch the character cache.",
-        confirm = true, confirmText = "Reset all settings to defaults?",
+        type = "execute", order = 34, name = L.OPT_RESET,
+        desc = L.OPT_RESET_DESC,
+        confirm = true, confirmText = L.OPT_RESET_CONFIRM,
         func = function() Config:ResetSettings() end,
       },
     },

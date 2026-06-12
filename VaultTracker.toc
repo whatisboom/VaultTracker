@@ -2,11 +2,16 @@
 ## Title: VaultTracker
 ## Notes: Account-wide Great Vault nudge tracker
 ## Author: brandon
-## Version: 0.1.0
+## Version: @project-version@
 ## SavedVariables: VaultTrackerDB
 ## X-Category: Information
+## X-Curse-Project-ID: 1572774
 
 Libs\embeds.xml
+Locales\enUS.lua
+Locales\deDE.lua
+Locales\frFR.lua
+Locale.lua
 Derived.lua
 Attention.lua
 Format.lua
