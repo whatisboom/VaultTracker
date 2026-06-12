@@ -2,77 +2,303 @@ local ADDON, ns = ...
 local Roster = {}
 ns.Roster = Roster
 
-local AceGUI = LibStub("AceGUI-3.0")
-local TRACK_ORDER = { "raid", "dungeon", "world" }
-local TRACK_LABEL = { raid = "Raid", dungeon = "Dungeon", world = "World" }
-
 local function classColor(class)
   local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-  if c then return c.colorStr end
-  return "ffffffff"
+  return c and c.colorStr or "ffffffff"
 end
 
-local function trackLine(track)
-  local dots = {}
-  for i = 1, #track do
-    dots[i] = (track[i].progress >= track[i].threshold) and "|cff33ff33O|r" or "|cff555555o|r"
+-- One slot's text: earned + known ilvl -> green ilvl; earned + unresolved -> ready-check;
+-- unearned -> muted progress fraction.
+local READY_CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:13:13|t"
+
+local function slotText(tier, dim)
+  if tier.progress >= tier.threshold then
+    local il = tier.rewardIlvl or 0
+    if il > 0 then return ("|cff%s%d|r"):format(dim and "6f6f6f" or "38d13e", il) end
+    return READY_CHECK
   end
-  local ilvls = ns.Derived.slotIlvls(track)
-  local parts = {}
-  for i = 1, #ilvls do parts[i] = ilvls[i] > 0 and tostring(ilvls[i]) or "--" end
-  return table.concat(dots, "") .. "  " .. table.concat(parts, " / ")
+  return ("|cff%s%d/%d|r"):format(dim and "5a5444" or "9a8f73", tier.progress, tier.threshold)
 end
 
-function Roster:Build()
-  local Derived = ns.Derived
-  local frame = AceGUI:Create("Frame")
-  frame:SetTitle("VaultTracker — Roster")
-  frame:SetLayout("Fill")
-  frame:SetCallback("OnClose", function(widget) AceGUI:Release(widget); Roster.frame = nil end)
-  self.frame = frame
+-- Layout: column x-offsets from the frame's left; tracks hold 3 fixed-width slots.
+local COLS_X = { name = 40, ilvl = 160, raid = 208, dungeon = 330, world = 452 }
+local TRACKS = { "raid", "dungeon", "world" }
+local TRACK_LABEL = { raid = "Raid", dungeon = "Dungeon", world = "World" }
+local HEADERS = {
+  { key = "name", text = "Character" }, { key = "ilvl", text = "ilvl" },
+  { key = "raid", text = "Raid" }, { key = "dungeon", text = "Dungeon" }, { key = "world", text = "World" },
+}
+local FRAME_W   = 588
+local ROW_INSET = 8
+local ROW_H     = 22
+local ICON_X    = 16
+local NAME_W    = 116
+local SLOT_W    = 40
+local HEAD_Y    = -42
+local ROW0_Y    = -64
 
-  -- A single ScrollFrame fills the window so a long roster scrolls.
-  local scroll = AceGUI:Create("ScrollFrame")
-  scroll:SetLayout("List")
-  frame:AddChild(scroll)
+local function ago(ts)
+  if not ts then return "never" end
+  local s = time() - ts
+  if s < 3600 then return ("%dm ago"):format(math.max(1, math.floor(s / 60))) end
+  if s < 86400 then return ("%dh ago"):format(math.floor(s / 3600)) end
+  return ("%dd ago"):format(math.floor(s / 86400))
+end
 
-  -- Sort: eligible first, then by name.
+local function setRowIcon(tex, char)
+  if char.specIcon then
+    tex:SetTexture(char.specIcon)
+    tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  elseif char.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[char.class] then
+    tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+    local c = CLASS_ICON_TCOORDS[char.class]
+    tex:SetTexCoord(c.left or c[1], c.right or c[2], c.top or c[3], c.bottom or c[4])
+  else
+    tex:SetTexture(134400); tex:SetTexCoord(0, 1, 0, 1)  -- INV_Misc_QuestionMark
+  end
+  tex:SetDesaturated(not char.eligible)
+  tex:Show()
+end
+
+-- Tooltip content for one slot. World omits a "source" line until `level` is verified.
+local function fillSlotTooltip(tt, tk, tier, idx)
+  tt:AddLine(("%s — Slot %d"):format(TRACK_LABEL[tk], idx), 1, 0.82, 0)
+  if tier.progress >= tier.threshold then
+    if tk == "dungeon" and (tier.level or 0) > 0 then
+      tt:AddLine(("Mythic+ %d"):format(tier.level), 1, 1, 1)
+    elseif tk == "raid" and tier.raidString then
+      tt:AddLine(tier.raidString, 1, 1, 1)
+    end
+    if (tier.rewardIlvl or 0) > 0 then
+      tt:AddLine(("Reward: item level %d"):format(tier.rewardIlvl), 0.4, 0.85, 0.4)
+    else
+      tt:AddLine("Reward: pending", 0.7, 0.7, 0.7)
+    end
+  else
+    tt:AddLine(("Progress: %d / %d"):format(tier.progress, tier.threshold), 1, 1, 1)
+    tt:AddLine(("%d more to unlock"):format(tier.threshold - tier.progress), 0.85, 0.65, 0.2)
+    if tk == "raid" and tier.raidString then
+      tt:AddLine("This week: " .. tier.raidString, 0.7, 0.7, 0.7)
+    end
+  end
+end
+
+local function attentionMap()
+  local m = {}
+  for _, e in ipairs(ns.Attention.build(ns.db.global.characters, ns.db.global.settings,
+      C_DateAndTime.GetSecondsUntilWeeklyReset())) do
+    m[e.key] = e.severity
+  end
+  return m
+end
+
+local function sortedKeys(attn)
+  local chars = ns.db.global.characters
+  local function rank(key)
+    if attn[key] == "red" then return 0 end
+    if attn[key] == "amber" then return 1 end
+    return 2
+  end
   local keys = {}
-  for key in pairs(ns.db.global.characters) do keys[#keys + 1] = key end
+  for key in pairs(chars) do keys[#keys + 1] = key end
   table.sort(keys, function(a, b)
-    local ca, cb = ns.db.global.characters[a], ns.db.global.characters[b]
-    if (ca.eligible or false) ~= (cb.eligible or false) then return ca.eligible and true or false end
+    local ca, cb = chars[a], chars[b]
+    local ra, rb = rank(a), rank(b)
+    if ra ~= rb then return ra < rb end
+    local ia, ib = ca.ilvl or 0, cb.ilvl or 0
+    if ia ~= ib then return ia > ib end
     return (ca.name or a) < (cb.name or b)
   end)
+  return keys
+end
 
-  for _, key in ipairs(keys) do
-    local char = ns.db.global.characters[key]
-    local g = AceGUI:Create("InlineGroup")
-    g:SetFullWidth(true)
-    g:SetLayout("List")
-    local pending = char.hasPendingLoot and "  |cffff4040[banked loot]|r" or ""
-    local dim = char.eligible and "" or "|cff888888"
-    g:SetTitle(("|c%s%s-%s|r  ilvl %d%s"):format(
-      classColor(char.class), char.name or "?", char.realm or "?", char.ilvl or 0, pending))
+local function resetText()
+  local secs = C_DateAndTime.GetSecondsUntilWeeklyReset() or 0
+  return ("Resets in %dd %dh"):format(math.floor(secs / 86400), math.floor((secs % 86400) / 3600))
+end
 
-    local period = Derived.currentPeriod(char)
-    for _, tk in ipairs(TRACK_ORDER) do
-      local lbl = AceGUI:Create("Label")
-      lbl:SetFullWidth(true)
-      local track = period and period.tracks[tk]
-      local body = track and trackLine(track) or "no data"
-      lbl:SetText(("%s%-8s|r  %s"):format(dim, TRACK_LABEL[tk], body))
-      g:AddChild(lbl)
-    end
-    scroll:AddChild(g)
+function Roster:CreateFrame()
+  local f = CreateFrame("Frame", "VaultTrackerRosterFrame", UIParent, "BackdropTemplate")
+  f:SetSize(FRAME_W, 120)
+  f:SetPoint("CENTER")
+  f:SetFrameStrata("HIGH")
+  f:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 24,
+    insets = { left = 8, right = 8, top = 8, bottom = 8 },
+  })
+  f:EnableMouse(true)
+  f:SetMovable(true)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", f.StartMoving)
+  f:SetScript("OnDragStop", f.StopMovingOrSizing)
+
+  local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  title:SetPoint("TOP", 0, -12)
+  title:SetText("VaultTracker — Roster")
+
+  f.countdown = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  f.countdown:SetPoint("TOPLEFT", 16, -16)
+
+  local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+  close:SetPoint("TOPRIGHT", -4, -4)
+  tinsert(UISpecialFrames, "VaultTrackerRosterFrame")
+
+  for _, h in ipairs(HEADERS) do
+    local fs = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    fs:SetPoint("TOPLEFT", COLS_X[h.key], HEAD_Y)
+    fs:SetText(h.text)
   end
+
+  local rule = f:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(1, 1, 1, 0.10)
+  rule:SetPoint("TOPLEFT", 14, HEAD_Y - 16)
+  rule:SetPoint("TOPRIGHT", -14, HEAD_Y - 16)
+  rule:SetHeight(1)
+
+  f:SetScript("OnUpdate", function(self, elapsed)
+    self._t = (self._t or 5) + elapsed
+    if self._t > 20 then self._t = 0; self.countdown:SetText(resetText()) end
+  end)
+
+  f.rows = {}
+  f:Hide()
+  return f
+end
+
+local function acquireRow(f, i)
+  local row = f.rows[i]
+  if row then return row end
+  row = CreateFrame("Frame", nil, f)
+  row:SetSize(FRAME_W - ROW_INSET * 2, ROW_H)
+  row:SetPoint("TOPLEFT", ROW_INSET, ROW0_Y - (i - 1) * ROW_H)
+  row:EnableMouse(true)
+  row:SetScript("OnEnter", function(self) self.hl:Show() end)
+  row:SetScript("OnLeave", function(self) self.hl:Hide() end)
+
+  row.stripe = row:CreateTexture(nil, "BACKGROUND")
+  row.stripe:SetAllPoints(); row.stripe:SetColorTexture(1, 1, 1, 0.025)
+
+  row.glow = row:CreateTexture(nil, "BORDER")
+  row.glow:SetAllPoints(); row.glow:Hide()
+
+  row.hl = row:CreateTexture(nil, "ARTWORK")
+  row.hl:SetAllPoints(); row.hl:SetColorTexture(1, 1, 1, 0.07); row.hl:Hide()
+
+  row.icon = row:CreateTexture(nil, "OVERLAY")
+  row.icon:SetSize(16, 16)
+  row.icon:SetPoint("LEFT", ICON_X - ROW_INSET, 0)
+
+  -- name: a hoverable frame for the character tooltip
+  row.nameFrame = CreateFrame("Frame", nil, row)
+  row.nameFrame:SetSize(NAME_W, ROW_H)
+  row.nameFrame:SetPoint("LEFT", COLS_X.name - ROW_INSET, 0)
+  row.nameFrame:EnableMouse(true)
+  row.nameText = row.nameFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.nameText:SetPoint("LEFT")
+  row.nameText:SetJustifyH("LEFT")
+
+  row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.ilvlText:SetPoint("LEFT", COLS_X.ilvl - ROW_INSET, 0)
+  row.ilvlText:SetJustifyH("LEFT")
+
+  -- tracks: three hoverable slot frames each
+  row.slots = {}
+  for _, tk in ipairs(TRACKS) do
+    row.slots[tk] = {}
+    for j = 1, 3 do
+      local sf = CreateFrame("Frame", nil, row)
+      sf:SetSize(SLOT_W, ROW_H)
+      sf:SetPoint("LEFT", COLS_X[tk] - ROW_INSET + (j - 1) * SLOT_W, 0)
+      sf:EnableMouse(true)
+      sf.text = sf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      sf.text:SetPoint("LEFT")
+      sf.text:SetJustifyH("LEFT")
+      row.slots[tk][j] = sf
+    end
+  end
+
+  f.rows[i] = row
+  return row
+end
+
+function Roster:Refresh()
+  local f = self.frame
+  local chars = ns.db.global.characters
+  local attn = attentionMap()
+  local keys = sortedKeys(attn)
+  f.countdown:SetText(resetText())
+
+  for i, key in ipairs(keys) do
+    local char = chars[key]
+    local dim = not char.eligible
+    local row = acquireRow(f, i)
+
+    setRowIcon(row.icon, char)
+    row.nameText:SetText(dim and ("|cff6a6453%s|r"):format(char.name or "?")
+      or ("|c%s%s|r"):format(classColor(char.class), char.name or "?"))
+    row.ilvlText:SetText(("|cff%s%d|r"):format(dim and "6a6453" or "ffd100", char.ilvl or 0))
+
+    row.nameFrame:SetScript("OnEnter", function(self)
+      row.hl:Show()
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:AddLine(("|c%s%s-%s|r"):format(classColor(char.class), char.name or "?", char.realm or "?"))
+      if char.spec then GameTooltip:AddLine(char.spec, 0.8, 0.8, 0.8) end
+      GameTooltip:AddLine(("Equipped item level %d"):format(char.ilvl or 0), 1, 0.82, 0)
+      GameTooltip:AddLine("Last scanned: " .. ago(char.lastScan), 0.6, 0.6, 0.6)
+      if dim then GameTooltip:AddLine("Not yet eligible (no vault progress)", 0.6, 0.5, 0.4) end
+      GameTooltip:Show()
+    end)
+    row.nameFrame:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
+
+    local period = ns.Derived.currentPeriod(char)
+    for _, tk in ipairs(TRACKS) do
+      local track = period and period.tracks[tk]
+      for j = 1, 3 do
+        local sf = row.slots[tk][j]
+        local tier = track and track[j]
+        if tier then
+          sf.text:SetText(slotText(tier, dim))
+          sf:EnableMouse(true)
+          sf:SetScript("OnEnter", function(self)
+            row.hl:Show()
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            fillSlotTooltip(GameTooltip, tk, tier, j)
+            GameTooltip:Show()
+          end)
+          sf:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
+        else
+          sf.text:SetText(j == 1 and "|cff6a6453—|r" or "")
+          sf:EnableMouse(false)
+          sf:SetScript("OnEnter", nil)
+          sf:SetScript("OnLeave", nil)
+        end
+      end
+    end
+
+    if i % 2 == 0 then row.stripe:Show() else row.stripe:Hide() end
+    local sev = attn[key]
+    if sev == "red" then
+      row.glow:SetColorTexture(0.85, 0.12, 0.12, 0.14); row.glow:Show()
+    elseif sev == "amber" then
+      row.glow:SetColorTexture(0.85, 0.65, 0.12, 0.10); row.glow:Show()
+    else
+      row.glow:Hide()
+    end
+    row:Show()
+  end
+  for i = #keys + 1, #f.rows do f.rows[i]:Hide() end
+
+  f:SetHeight(-ROW0_Y + math.max(#keys, 1) * ROW_H + 14)
 end
 
 function Roster:Toggle()
-  if self.frame then
-    AceGUI:Release(self.frame)
-    self.frame = nil
+  if not self.frame then self.frame = self:CreateFrame() end
+  if self.frame:IsShown() then
+    self.frame:Hide()
   else
-    self:Build()
+    self:Refresh()
+    self.frame:Show()
   end
 end

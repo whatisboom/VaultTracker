@@ -84,3 +84,53 @@ end
 function Derived.currentPeriod(char)
   return char.periods and char.periods[char.currentWeekId] or nil
 end
+
+-- A quantized block meter for an unearned slot's progress toward its threshold.
+-- Returns a string of `segments` glyphs: filled (U+25B0) then empty (U+25B1).
+-- Any progress > 0 shows at least one filled segment ("started").
+function Derived.blockBar(progress, threshold, segments)
+  segments = segments or 4
+  local frac = (threshold and threshold > 0) and (progress / threshold) or 1
+  if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+  local filled = math.floor(frac * segments + 0.5)
+  if progress and progress > 0 and filled == 0 then filled = 1 end
+  if filled > segments then filled = segments end
+  return string.rep("▰", filled) .. string.rep("▱", segments - filled)
+end
+
+-- Unlocked slot count and total slot count across all three tracks of a period.
+function Derived.periodSlots(period)
+  local unlocked, total = 0, 0
+  for _, track in pairs(period.tracks) do
+    total = total + #track
+    unlocked = unlocked + Derived.slotsUnlocked(track)
+  end
+  return unlocked, total
+end
+
+-- Keys of characters not scanned within `weeks` (a set). `keepKey` is never
+-- included (e.g. the current character). A missing lastScan counts as stale.
+function Derived.staleKeys(characters, now, weeks, keepKey)
+  local cutoff = now - weeks * 7 * 24 * 3600
+  local out = {}
+  for key, char in pairs(characters) do
+    if key ~= keepKey and (char.lastScan or 0) < cutoff then
+      out[key] = true
+    end
+  end
+  return out
+end
+
+-- Best reward ilvl across banked (prior-period) snapshots; 0 if none have detail.
+function Derived.bankedBest(char)
+  local best = 0
+  if not char.periods then return 0 end
+  local current = char.currentWeekId or math.huge
+  for wk, period in pairs(char.periods) do
+    if wk < current then
+      local b = Derived.bestIlvl(period)
+      if b > best then best = b end
+    end
+  end
+  return best
+end

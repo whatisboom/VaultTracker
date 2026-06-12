@@ -15,12 +15,39 @@ function Broker:Setup(addon)
   self.obj = LDB:NewDataObject("VaultTracker", {
     type = "data source",
     text = "Vault",
-    icon = "Interface\\Icons\\INV_Misc_Treasurechest_03",
+    icon = "Interface\\Icons\\INV_Misc_QuestionMark",  -- guaranteed-render placeholder; theme once confirmed
     OnClick = function(_, button) Broker:OnClick(button) end,
     OnTooltipShow = function(tt) Broker:OnTooltip(tt) end,
   })
   DBIcon:Register("VaultTracker", self.obj, ns.db.global.settings.minimap)
   self:Update()
+  self:ApplyThemedIcon()
+end
+
+-- Use the game's Great Vault artwork if any candidate atlas resolves on this
+-- client (verified via GetAtlasInfo so it can never blank); else keep the icon.
+local VAULT_ATLASES = {
+  "GreatVault-32x32", "greatVault-32x32", "greatvault-32x32",
+  "WeeklyRewards-32x32", "Vault-32x32",
+}
+function Broker:ApplyThemedIcon()
+  local DBIcon = LibStub("LibDBIcon-1.0")
+  local button = DBIcon.GetMinimapButton and DBIcon:GetMinimapButton("VaultTracker")
+  if not (button and button.icon) then return end
+  if C_Texture and C_Texture.GetAtlasInfo then
+    for _, atlas in ipairs(VAULT_ATLASES) do
+      if C_Texture.GetAtlasInfo(atlas) then
+        button.icon:SetAtlas(atlas)
+        -- LibDBIcon's default 17x17 top-left icon leaves the atlas art small with
+        -- padding; enlarge and center it so the vault fills the minimap button.
+        button.icon:SetSize(30, 30)
+        button.icon:ClearAllPoints()
+        button.icon:SetPoint("CENTER", button, "CENTER", 1, 0)
+        return
+      end
+    end
+  end
+  -- no vault atlas on this client: the dataobject's guaranteed icon stays.
 end
 
 -- Compute the current attention list from live data.
@@ -35,23 +62,18 @@ function Broker:Update()
   if not self.obj then return end
   local list = self:Current()
   local s = ns.Attention.summary(list)
-  local c = COLORS[s.color] or COLORS.none
+  local hasAttention = s.count > 0
+  -- Color-only badge (no count on the minimap): tint by urgency, natural when idle.
+  local c = hasAttention and (COLORS[s.color] or COLORS.none) or { 1, 1, 1 }
 
-  -- LDB text + icon color hint (used by bar displays).
-  self.obj.text = (s.count > 0) and tostring(s.count) or "Vault"
+  -- LDB text/icon-color hint for bar displays; the minimap itself shows color only.
+  self.obj.text = hasAttention and tostring(s.count) or "Vault"
   self.obj.iconR, self.obj.iconG, self.obj.iconB = c[1], c[2], c[3]
 
-  -- Minimap button: tint icon + overlay a numeric badge.
   local DBIcon = LibStub("LibDBIcon-1.0")
   local button = DBIcon.GetMinimapButton and DBIcon:GetMinimapButton("VaultTracker")
-  if button then
-    if button.icon then button.icon:SetVertexColor(c[1], c[2], c[3]) end
-    if not button.vtBadge then
-      local fs = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-      fs:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 2)
-      button.vtBadge = fs
-    end
-    button.vtBadge:SetText(s.count > 0 and tostring(s.count) or "")
+  if button and button.icon then
+    button.icon:SetVertexColor(c[1], c[2], c[3])
   end
 end
 
@@ -63,20 +85,25 @@ function Broker:OnClick(button)
   end
 end
 
-local REASON_TEXT = { banked = "banked loot", untouched = "untouched", incomplete = "incomplete" }
+local function classHex(class)
+  local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+  return c and c.colorStr or "ffffffff"
+end
 
 function Broker:OnTooltip(tt)
   tt:AddLine("VaultTracker")
+  local chars = ns.db.global.characters
   local list = self:Current()
   if #list == 0 then
     tt:AddLine("Nothing needs attention.", 0.6, 0.6, 0.6)
   else
     for _, e in ipairs(list) do
-      local labels = {}
-      for _, r in ipairs(e.reasons) do labels[#labels + 1] = REASON_TEXT[r] or r end
+      -- red "!" for banked urgency, amber "·" for time-pressure
+      local marker = (e.severity == "red") and "|cffff5555!|r" or "|cfff2c24a·|r"
+      local name = ("%s |c%s%s-%s|r"):format(marker, classHex(e.class), e.name, e.realm)
+      local reason = ns.Format.tooltipReason(e, chars[e.key])
       local c = COLORS[e.severity] or COLORS.none
-      tt:AddDoubleLine(e.name .. "-" .. e.realm, table.concat(labels, ", "),
-        1, 1, 1, c[1], c[2], c[3])
+      tt:AddDoubleLine(name, reason, 1, 1, 1, c[1], c[2], c[3])
     end
   end
   local secs = C_DateAndTime.GetSecondsUntilWeeklyReset() or 0

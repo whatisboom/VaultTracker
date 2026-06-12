@@ -26,6 +26,7 @@ local function readTrack(thresholdType)
       threshold = a.threshold,
       progress = a.progress,
       level = a.level or 0,
+      raidString = a.raidString,  -- e.g. "1/8 Heroic" for raid tiers (nil otherwise)
       rewardIlvl = (a.progress >= a.threshold) and rewardIlvl(a.id) or 0,
     }
   end
@@ -60,7 +61,13 @@ function Scanner:Scan()
   entry.realm = realm
   entry.class = UnitClassBase("player")
   local specIndex = GetSpecialization and GetSpecialization()
-  entry.spec = specIndex and select(2, GetSpecializationInfo(specIndex)) or nil
+  if specIndex then
+    local _, specName, _, specIcon = GetSpecializationInfo(specIndex)
+    entry.spec = specName
+    entry.specIcon = specIcon
+  else
+    entry.spec, entry.specIcon = nil, nil
+  end
   entry.ilvl = math.floor((select(2, GetAverageItemLevel())) or 0)
   entry.lastScan = now
   entry.hasPendingLoot = C_WeeklyRewards.HasAvailableRewards() and true or false
