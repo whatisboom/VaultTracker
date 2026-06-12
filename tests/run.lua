@@ -13,8 +13,21 @@ local function loadModule(path, ns)
   chunk("VaultTracker", ns)
 end
 
+-- Minimal LibStub/AceLocale shim so the real locale file loads outside WoW.
+local locales = {}
+_G.LibStub = function(name)
+  if name == "AceLocale-3.0" then
+    return {
+      NewLocale = function(_, app) locales[app] = locales[app] or {}; return locales[app] end,
+      GetLocale = function(_, app) return locales[app] end,
+    }
+  end
+end
+
 local F = dofile("tests/fixtures.lua")
 local ns = {}
+loadModule("Locales/enUS.lua", ns)
+loadModule("Locale.lua", ns)
 loadModule("Derived.lua", ns)
 loadModule("Attention.lua", ns)
 loadModule("Format.lua", ns)
@@ -184,14 +197,14 @@ do
   local Format = ns.Format
   local bankedChar = F.char({ weekId = 2000, hasPendingLoot = true, period = F.untouchedPeriod() })
   bankedChar.periods[1000] = F.maxedPeriod()
-  eq(Format.tooltipReason({ reasons = {"banked"} }, bankedChar), "banked loot · best 272",
+  eq(Format.tooltipReason({ reasons = {"banked"} }, bankedChar), "banked loot, best 272",
      "tooltipReason banked with best")
   eq(Format.tooltipReason({ reasons = {"banked"} }, F.char({ hasPendingLoot = true, period = F.untouchedPeriod() })),
      "banked loot", "tooltipReason banked without known best")
   eq(Format.tooltipReason({ reasons = {"untouched"} }, F.char({ period = F.untouchedPeriod() })),
      "0/9", "tooltipReason untouched is just 0/9, no word")
   eq(Format.tooltipReason({ reasons = {"incomplete"} }, F.char({ period = F.partialPeriod() })),
-     "2/9 · best 272", "tooltipReason incomplete shows slots + best")
+     "2/9, best 272", "tooltipReason incomplete shows slots + best")
 
   -- summary: chat lines
   eq(Format.summary({}, {})[1], "|cff888888All caught up.|r", "summary empty -> all caught up")

@@ -14,7 +14,7 @@ function Broker:Setup(addon)
 
   self.obj = LDB:NewDataObject("VaultTracker", {
     type = "data source",
-    text = "Vault",
+    text = ns.L.BROKER_LABEL,
     icon = "Interface\\Icons\\INV_Misc_QuestionMark",  -- guaranteed-render placeholder; theme once confirmed
     OnClick = function(_, button) Broker:OnClick(button) end,
     OnTooltipShow = function(tt) Broker:OnTooltip(tt) end,
@@ -67,7 +67,7 @@ function Broker:Update()
   local c = hasAttention and (COLORS[s.color] or COLORS.none) or { 1, 1, 1 }
 
   -- LDB text/icon-color hint for bar displays; the minimap itself shows color only.
-  self.obj.text = hasAttention and tostring(s.count) or "Vault"
+  self.obj.text = hasAttention and tostring(s.count) or ns.L.BROKER_LABEL
   self.obj.iconR, self.obj.iconG, self.obj.iconB = c[1], c[2], c[3]
 
   local DBIcon = LibStub("LibDBIcon-1.0")
@@ -95,11 +95,11 @@ function Broker:OnTooltip(tt)
   local chars = ns.db.global.characters
   local list = self:Current()
   if #list == 0 then
-    tt:AddLine("Nothing needs attention.", 0.6, 0.6, 0.6)
+    tt:AddLine(ns.L.BROKER_NOTHING, 0.6, 0.6, 0.6)
   else
     for _, e in ipairs(list) do
-      -- red "!" for banked urgency, amber "·" for time-pressure
-      local marker = (e.severity == "red") and "|cffff5555!|r" or "|cfff2c24a·|r"
+      -- red "!" for banked urgency, amber "-" for time-pressure
+      local marker = (e.severity == "red") and "|cffff5555!|r" or "|cfff2c24a-|r"
       local name = ("%s |c%s%s-%s|r"):format(marker, classHex(e.class), e.name, e.realm)
       local reason = ns.Format.tooltipReason(e, chars[e.key])
       local c = COLORS[e.severity] or COLORS.none
@@ -107,7 +107,7 @@ function Broker:OnTooltip(tt)
     end
   end
   local secs = C_DateAndTime.GetSecondsUntilWeeklyReset() or 0
-  tt:AddLine(("Reset in %dh %dm"):format(math.floor(secs / 3600), math.floor((secs % 3600) / 60)),
+  tt:AddLine((ns.L.BROKER_RESET):format(math.floor(secs / 3600), math.floor((secs % 3600) / 60)),
     0.5, 0.5, 0.5)
-  tt:AddLine("Left-click: roster   Right-click: settings", 0.4, 0.4, 0.4)
+  tt:AddLine(ns.L.BROKER_FOOTER, 0.4, 0.4, 0.4)
 end

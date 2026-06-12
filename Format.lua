@@ -15,34 +15,36 @@ end
 -- appended only when some reward is actually claimable.
 function Format.tooltipReason(entry, char)
   local Derived = ns.Derived
+  local L = ns.L
   if has(entry.reasons, "banked") then
     local best = Derived.bankedBest(char)
-    if best > 0 then return ("banked loot · best %d"):format(best) end
-    return "banked loot"
+    if best > 0 then return (L.REASON_BANKED_BEST):format(best) end
+    return L.REASON_BANKED
   end
   local period = Derived.currentPeriod(char)
   if not period then return "" end
   local unlocked, total = Derived.periodSlots(period)
   if unlocked == 0 then
-    return ("%d/%d"):format(unlocked, total)
+    return (L.REASON_SLOTS):format(unlocked, total)
   end
   local best = Derived.bestIlvl(period)
   if best > 0 then
-    return ("%d/%d · best %d"):format(unlocked, total, best)
+    return (L.REASON_SLOTS_BEST):format(unlocked, total, best)
   end
-  return ("%d/%d"):format(unlocked, total)
+  return (L.REASON_SLOTS):format(unlocked, total)
 end
 
 -- The login chat-summary lines: one per character needing attention, or a single
 -- "all caught up" line when the attention list is empty.
 function Format.summary(list, chars)
+  local L = ns.L
   if #list == 0 then
-    return { "|cff888888All caught up.|r" }
+    return { ("|cff888888%s|r"):format(L.SUMMARY_DONE) }
   end
   local out = {}
   for _, e in ipairs(list) do
     local marker = (e.severity == "red") and "|cffff5555!|r" or "|cfff2c24a-|r"
-    out[#out + 1] = ("%s %s-%s: %s"):format(marker, e.name, e.realm,
+    out[#out + 1] = (L.SUMMARY_LINE):format(marker, e.name, e.realm,
       Format.tooltipReason(e, chars[e.key]))
   end
   return out
