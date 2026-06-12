@@ -1,2 +1,5 @@
 # macOS
 .DS_Store
+
+# Brainstorm visual-companion mockups (local only)
+.superpowers/

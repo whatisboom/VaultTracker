@@ -9,6 +9,7 @@
 Libs\embeds.xml
 Derived.lua
 Attention.lua
+Format.lua
 Config.lua
 Scanner.lua
 Broker.lua

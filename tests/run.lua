@@ -17,6 +17,7 @@ local F = dofile("tests/fixtures.lua")
 local ns = {}
 loadModule("Derived.lua", ns)
 loadModule("Attention.lua", ns)
+loadModule("Format.lua", ns)
 
 local Derived = ns.Derived
 do
@@ -152,6 +153,72 @@ do
   list = Attention.build(chars, settings, inWindow)
   eq(#list[1].reasons, 1, "untouched eligible has exactly one reason")
   eq(list[1].reasons[1], "untouched", "untouched, not incomplete")
+end
+
+-- ===== Presentation helpers (block meter, slot totals, banked best, tooltip) =====
+do
+  -- blockBar: quantize progress/threshold to `segments` filled glyphs
+  eq(Derived.blockBar(0, 4, 4), "▱▱▱▱", "blockBar empty")
+  eq(Derived.blockBar(2, 4, 4), "▰▰▱▱", "blockBar half (2/4)")
+  eq(Derived.blockBar(2, 8, 4), "▰▱▱▱", "blockBar quarter (2/8)")
+  eq(Derived.blockBar(1, 8, 4), "▰▱▱▱", "blockBar shows started even when <1 segment")
+  eq(Derived.blockBar(4, 4, 4), "▰▰▰▰", "blockBar full")
+  eq(Derived.blockBar(0, 0, 4), "▰▰▰▰", "blockBar guards threshold 0")
+
+  -- periodSlots: unlocked / total across the 3 tracks
+  local u, t = Derived.periodSlots(F.maxedPeriod())
+  eq(u, 9, "periodSlots maxed unlocked"); eq(t, 9, "periodSlots maxed total")
+  u, t = Derived.periodSlots(F.untouchedPeriod())
+  eq(u, 0, "periodSlots untouched unlocked"); eq(t, 9, "periodSlots untouched total")
+  u = Derived.periodSlots(F.partialPeriod())
+  eq(u, 2, "periodSlots partial unlocked (raid1 + world1)")
+
+  -- bankedBest: best ilvl across periods older than currentWeekId
+  local banked = F.char({ weekId = 2000, period = F.untouchedPeriod() })
+  banked.periods[1000] = F.maxedPeriod()  -- a prior banked period with detail
+  eq(Derived.bankedBest(banked), 272, "bankedBest reads prior period detail")
+  eq(Derived.bankedBest(F.char({ weekId = 2000, period = F.maxedPeriod() })), 0,
+     "bankedBest 0 when no prior periods")
+
+  -- tooltipReason
+  local Format = ns.Format
+  local bankedChar = F.char({ weekId = 2000, hasPendingLoot = true, period = F.untouchedPeriod() })
+  bankedChar.periods[1000] = F.maxedPeriod()
+  eq(Format.tooltipReason({ reasons = {"banked"} }, bankedChar), "banked loot · best 272",
+     "tooltipReason banked with best")
+  eq(Format.tooltipReason({ reasons = {"banked"} }, F.char({ hasPendingLoot = true, period = F.untouchedPeriod() })),
+     "banked loot", "tooltipReason banked without known best")
+  eq(Format.tooltipReason({ reasons = {"untouched"} }, F.char({ period = F.untouchedPeriod() })),
+     "0/9", "tooltipReason untouched is just 0/9, no word")
+  eq(Format.tooltipReason({ reasons = {"incomplete"} }, F.char({ period = F.partialPeriod() })),
+     "2/9 · best 272", "tooltipReason incomplete shows slots + best")
+
+  -- summary: chat lines
+  eq(Format.summary({}, {})[1], "|cff888888All caught up.|r", "summary empty -> all caught up")
+  local sc = F.char({ name = "A", realm = "X", weekId = 1000, hasPendingLoot = true,
+                      period = F.untouchedPeriod() })
+  sc.periods[900] = F.maxedPeriod()  -- a banked prior period
+  local sList = { { key = "A-X", name = "A", realm = "X", severity = "red", reasons = {"banked"} } }
+  eq(Format.summary(sList, { ["A-X"] = sc })[1]:find("banked loot") ~= nil, true,
+     "summary line mentions banked loot")
+end
+
+-- ===== Stale-character pruning =====
+do
+  local now = 1000000000
+  local WEEK = 7 * 24 * 3600
+  local chars = {
+    ["Fresh-X"] = { lastScan = now },
+    ["Old-X"]   = { lastScan = now - 6 * WEEK },
+    ["Edge-X"]  = { lastScan = now - 4 * WEEK + 10 },  -- just inside the window
+    ["None-X"]  = {},                                   -- never scanned
+  }
+  local stale = Derived.staleKeys(chars, now, 4)
+  eq(stale["Old-X"], true, "staleKeys: 6wk old is stale")
+  eq(stale["Fresh-X"], nil, "staleKeys: fresh is kept")
+  eq(stale["Edge-X"], nil, "staleKeys: just inside window is kept")
+  eq(stale["None-X"], true, "staleKeys: missing lastScan is stale")
+  eq(Derived.staleKeys(chars, now, 4, "Old-X")["Old-X"], nil, "staleKeys respects keepKey")
 end
 
 print(("\n%d passed, %d failed"):format(passed, failed))
