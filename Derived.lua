@@ -70,6 +70,11 @@ function Derived.bestEarnedTier(period)
   return best
 end
 
+-- True iff a character has earned something (bestTier > 0) at or above the line.
+function Derived.qualifies(bestTier, line)
+  return bestTier > 0 and bestTier >= line
+end
+
 function Derived.isMaxed(period)
   for _, track in pairs(period.tracks) do
     for _, tier in ipairs(track) do
