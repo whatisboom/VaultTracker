@@ -82,7 +82,7 @@ local function setRowIcon(tex, char)
   else
     tex:SetTexture(134400); tex:SetTexCoord(0, 1, 0, 1)  -- INV_Misc_QuestionMark
   end
-  tex:SetDesaturated(not char.eligible)
+  tex:SetDesaturated(not ns.Derived.effectiveTracked(char, ns.db.global.settings.seriousness))
   tex:Show()
 end
 
@@ -125,8 +125,12 @@ local function sortedKeys(attn)
     if attn[key] == "amber" then return 1 end
     return 2
   end
+  local show = ns.db.global.settings.showIgnored
+  local default = ns.db.global.settings.seriousness
   local keys = {}
-  for key in pairs(chars) do keys[#keys + 1] = key end
+  for key, char in pairs(chars) do
+    if show or ns.Derived.effectiveTracked(char, default) then keys[#keys + 1] = key end
+  end
   table.sort(keys, function(a, b)
     local ca, cb = chars[a], chars[b]
     local ra, rb = rank(a), rank(b)
@@ -278,7 +282,7 @@ function Roster:Refresh()
 
   for i, key in ipairs(keys) do
     local char = chars[key]
-    local dim = not char.eligible
+    local dim = not ns.Derived.effectiveTracked(char, ns.db.global.settings.seriousness)
     local row = acquireRow(f, i)
 
     setRowIcon(row.icon, char)
@@ -293,10 +297,33 @@ function Roster:Refresh()
       if char.spec then GameTooltip:AddLine(char.spec, 0.8, 0.8, 0.8) end
       GameTooltip:AddLine((ns.L.ROSTER_EQUIPPED):format(char.ilvl or 0), 1, 0.82, 0)
       GameTooltip:AddLine(ns.L.ROSTER_SCANNED .. ago(char.lastScan), 0.6, 0.6, 0.6)
-      if dim then GameTooltip:AddLine(ns.L.ROSTER_INELIGIBLE, 0.6, 0.5, 0.4) end
+      if dim then GameTooltip:AddLine(ns.L.ROSTER_IGNORED, 0.6, 0.5, 0.4) end
       GameTooltip:Show()
     end)
     row.nameFrame:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
+
+    -- Right-click a row to set this character's tier line (Auto / tiers / Off),
+    -- written to chars[key].trackTier. Refresh re-applies the tracked gate.
+    row.nameFrame:SetScript("OnMouseUp", function(_, button)
+      if button ~= "RightButton" then return end
+      MenuUtil.CreateContextMenu(row.nameFrame, function(_, root)
+        root:CreateTitle(ns.L.ROSTER_TRACKTIER)
+        local function opt(label, value)
+          root:CreateRadio(label, function() return char.trackTier == value end, function()
+            char.trackTier = value
+            ns.Broker:Update()
+            ns.Roster:Refresh()
+          end)
+        end
+        opt(ns.L.ROSTER_TRACK_AUTO, nil)
+        opt(ns.L.TIER_VETERAN,  "veteran")
+        opt(ns.L.TIER_CHAMPION, "champion")
+        opt(ns.L.TIER_HERO,     "hero")
+        opt(ns.L.TIER_MYTH,     "myth")
+        root:CreateDivider()
+        opt(ns.L.ROSTER_TRACK_OFF, "off")
+      end)
+    end)
 
     local period = ns.Derived.currentPeriod(char)
     for _, tk in ipairs(TRACKS) do
