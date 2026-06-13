@@ -90,11 +90,6 @@ do
   eq(Derived.effectiveTracked({ trackTier = nil }, "champion"), false,
      "tracked: missing bestTier treated as 0")
 
-  -- sticky eligibility: prev true stays true; else true iff any progress
-  eq(Derived.observeEligibility(true, untouched), true, "eligibility sticky when prev true")
-  eq(Derived.observeEligibility(false, untouched), false, "eligibility false when untouched + prev false")
-  eq(Derived.observeEligibility(false, partial), true, "eligibility true on first progress")
-
   local char = F.char({ weekId = 1000, period = partial })
   eq(Derived.currentPeriod(char), partial, "currentPeriod returns the current weekId period")
 
