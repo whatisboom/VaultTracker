@@ -34,8 +34,34 @@ local ROW_H     = 22
 local ICON_X    = 16
 local NAME_W    = 116
 local SLOT_W    = 40
+local SLOT_PAD  = 6                  -- right-edge padding for right-aligned slot numbers
+local ILVL_R    = COLS_X.ilvl + 30   -- ilvl column right edge (frame-relative)
+-- Vertical separators: x at each group boundary (ilvl|raid, raid|dungeon, dungeon|world).
+local SEP_X = {
+  (ILVL_R + COLS_X.raid) / 2,
+  (COLS_X.raid + 3 * SLOT_W + COLS_X.dungeon) / 2,
+  (COLS_X.dungeon + 3 * SLOT_W + COLS_X.world) / 2,
+}
 local HEAD_Y    = -42
 local ROW0_Y    = -64
+
+-- Row background highlight: per-severity colour and intensity (alpha). The current
+-- character glows gold; an attention character glows red/amber. When the logged-in
+-- character also needs attention, the row fades from its attention colour to gold.
+local GLOW_COLOR = {
+  red     = { 0.85, 0.12, 0.12 },
+  amber   = { 0.85, 0.65, 0.12 },
+  current = { 1.0,  0.82, 0.0  },  -- gold, matches the "ffd100" ilvl text
+}
+local GLOW_ALPHA = { red = 0.14, amber = 0.10, current = 0.14 }
+
+-- glow is white; SetGradient filters it. Equal stops = solid fill, differing = fade.
+local function setGlow(tex, c1, a1, c2, a2)
+  tex:SetGradient("HORIZONTAL",
+    CreateColor(c1[1], c1[2], c1[3], a1),
+    CreateColor(c2[1], c2[2], c2[3], a2))
+  tex:Show()
+end
 
 local function ago(ts)
   if not ts then return ns.L.TIME_NEVER end
@@ -147,8 +173,14 @@ function Roster:CreateFrame()
 
   for _, h in ipairs(HEADERS) do
     local fs = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    fs:SetPoint("TOPLEFT", COLS_X[h.key], HEAD_Y)
     fs:SetText(h.text)
+    if h.key == "name" then
+      fs:SetPoint("TOPLEFT", COLS_X.name, HEAD_Y)
+    elseif h.key == "ilvl" then
+      fs:SetPoint("TOPRIGHT", f, "TOPLEFT", ILVL_R, HEAD_Y); fs:SetJustifyH("RIGHT")
+    else  -- track headers: centred over their three slots
+      fs:SetPoint("TOP", f, "TOPLEFT", COLS_X[h.key] + SLOT_W * 1.5, HEAD_Y)
+    end
   end
 
   local rule = f:CreateTexture(nil, "ARTWORK")
@@ -156,6 +188,19 @@ function Roster:CreateFrame()
   rule:SetPoint("TOPLEFT", 14, HEAD_Y - 16)
   rule:SetPoint("TOPRIGHT", -14, HEAD_Y - 16)
   rule:SetHeight(1)
+
+  -- Vertical separators bracketing the three track groups. On their own layer above
+  -- the rows so the row stripe/glow doesn't wash them out.
+  local sepLayer = CreateFrame("Frame", nil, f)
+  sepLayer:SetAllPoints()
+  sepLayer:SetFrameLevel(f:GetFrameLevel() + 5)
+  for _, x in ipairs(SEP_X) do
+    local sep = sepLayer:CreateTexture(nil, "ARTWORK")
+    sep:SetColorTexture(1, 1, 1, 0.14)
+    sep:SetWidth(1)
+    sep:SetPoint("TOP", f, "TOPLEFT", x, HEAD_Y + 6)
+    sep:SetPoint("BOTTOM", f, "BOTTOMLEFT", x, 12)
+  end
 
   f:SetScript("OnUpdate", function(self, elapsed)
     self._t = (self._t or 5) + elapsed
@@ -181,7 +226,7 @@ local function acquireRow(f, i)
   row.stripe:SetAllPoints(); row.stripe:SetColorTexture(1, 1, 1, 0.025)
 
   row.glow = row:CreateTexture(nil, "BORDER")
-  row.glow:SetAllPoints(); row.glow:Hide()
+  row.glow:SetAllPoints(); row.glow:SetColorTexture(1, 1, 1, 1); row.glow:Hide()
 
   row.hl = row:CreateTexture(nil, "ARTWORK")
   row.hl:SetAllPoints(); row.hl:SetColorTexture(1, 1, 1, 0.07); row.hl:Hide()
@@ -200,8 +245,8 @@ local function acquireRow(f, i)
   row.nameText:SetJustifyH("LEFT")
 
   row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  row.ilvlText:SetPoint("LEFT", COLS_X.ilvl - ROW_INSET, 0)
-  row.ilvlText:SetJustifyH("LEFT")
+  row.ilvlText:SetPoint("RIGHT", row, "LEFT", ILVL_R - ROW_INSET, 0)
+  row.ilvlText:SetJustifyH("RIGHT")
 
   -- tracks: three hoverable slot frames each
   row.slots = {}
@@ -213,8 +258,8 @@ local function acquireRow(f, i)
       sf:SetPoint("LEFT", COLS_X[tk] - ROW_INSET + (j - 1) * SLOT_W, 0)
       sf:EnableMouse(true)
       sf.text = sf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-      sf.text:SetPoint("LEFT")
-      sf.text:SetJustifyH("LEFT")
+      sf.text:SetPoint("RIGHT", -SLOT_PAD, 0)
+      sf.text:SetJustifyH("RIGHT")
       row.slots[tk][j] = sf
     end
   end
@@ -228,6 +273,7 @@ function Roster:Refresh()
   local chars = ns.db.global.characters
   local attn = attentionMap()
   local keys = sortedKeys(attn)
+  local currentKey = (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
   f.countdown:SetText(resetText())
 
   for i, key in ipairs(keys) do
@@ -279,10 +325,13 @@ function Roster:Refresh()
 
     if i % 2 == 0 then row.stripe:Show() else row.stripe:Hide() end
     local sev = attn[key]
-    if sev == "red" then
-      row.glow:SetColorTexture(0.85, 0.12, 0.12, 0.14); row.glow:Show()
-    elseif sev == "amber" then
-      row.glow:SetColorTexture(0.85, 0.65, 0.12, 0.10); row.glow:Show()
+    local gold = GLOW_COLOR.current
+    if key == currentKey and (sev == "red" or sev == "amber") then
+      setGlow(row.glow, GLOW_COLOR[sev], GLOW_ALPHA[sev], gold, GLOW_ALPHA.current)
+    elseif key == currentKey then
+      setGlow(row.glow, gold, GLOW_ALPHA.current, gold, GLOW_ALPHA.current)
+    elseif sev == "red" or sev == "amber" then
+      setGlow(row.glow, GLOW_COLOR[sev], GLOW_ALPHA[sev], GLOW_COLOR[sev], GLOW_ALPHA[sev])
     else
       row.glow:Hide()
     end
