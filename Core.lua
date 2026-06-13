@@ -7,6 +7,18 @@ ns.addon = VaultTracker
 function VaultTracker:OnInitialize()
   self.db = LibStub("AceDB-3.0"):New("VaultTrackerDB", ns.Config.defaults, true)
   ns.db = self.db
+  -- One-time migration to seriousness v2: grandfather previously-eligible characters
+  -- at the account default tier (self-corrects to their true tier on next scan);
+  -- drop the old eligible/eligibleAt fields. trackTier starts as auto (nil).
+  if not self.db.global.migratedSeriousnessV2 then
+    local def = self.db.global.settings.seriousness or "champion"
+    for _, c in pairs(self.db.global.characters) do
+      c.bestTier = c.eligible and (ns.Derived.TIER[def] or 2) or 0
+      c.trackTier = nil
+      c.eligible, c.eligibleAt = nil, nil
+    end
+    self.db.global.migratedSeriousnessV2 = true
+  end
   ns.Config:Setup(self)
   ns.Broker:Setup(self)
 end
