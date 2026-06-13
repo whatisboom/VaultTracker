@@ -159,6 +159,17 @@ function Derived.staleKeys(characters, now, weeks, keepKey)
   return out
 end
 
+-- Keys of cached characters now below the level cap (e.g. after an expansion
+-- raised it). A missing entry.level is treated as not-below (grandfathered until
+-- its first scan records a real level). Mirrors staleKeys.
+function Derived.belowMaxKeys(characters, maxLevel)
+  local out = {}
+  for key, char in pairs(characters) do
+    if char.level and char.level < maxLevel then out[key] = true end
+  end
+  return out
+end
+
 -- Best reward ilvl across banked (prior-period) snapshots; 0 if none have detail.
 function Derived.bankedBest(char)
   local best = 0

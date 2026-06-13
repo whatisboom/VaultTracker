@@ -267,6 +267,17 @@ do
   eq(stale["Edge-X"], nil, "staleKeys: just inside window is kept")
   eq(stale["None-X"], true, "staleKeys: missing lastScan is stale")
   eq(Derived.staleKeys(chars, now, 4, "Old-X")["Old-X"], nil, "staleKeys respects keepKey")
+
+  -- belowMaxKeys: characters under the current cap (cap-bump cleanup)
+  local lvlChars = {
+    ["Max-X"]   = { level = 80 },
+    ["Low-X"]   = { level = 70 },
+    ["NoLvl-X"] = {},            -- grandfathered, no level yet
+  }
+  local below = Derived.belowMaxKeys(lvlChars, 80)
+  eq(below["Low-X"], true, "belowMaxKeys: 70 < 80 is below")
+  eq(below["Max-X"], nil, "belowMaxKeys: at cap is kept")
+  eq(below["NoLvl-X"], nil, "belowMaxKeys: missing level is NOT below (kept)")
 end
 
 -- ===== Countdown formatting (drop leading zero units, weekly 0..7d range) =====
