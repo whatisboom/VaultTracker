@@ -71,7 +71,10 @@ L.TIME_D     = "%dd ago"
 -- Broker / minimap tooltip (Broker.lua)
 L.BROKER_LABEL   = "Vault"
 L.BROKER_NOTHING = "Nothing needs attention."
-L.BROKER_RESET   = "Reset in %dh %dm"
+L.BROKER_RESET   = "Reset in %s"
+L.COUNTDOWN_D    = "%dd"
+L.COUNTDOWN_H    = "%dh"
+L.COUNTDOWN_M    = "%dm"
 L.BROKER_FOOTER  = "Left-click: roster   Right-click: settings"
 
 -- Tooltip reasons + chat summary (Format.lua)
