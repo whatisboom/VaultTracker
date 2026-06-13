@@ -71,6 +71,11 @@ do
   eq(Derived.qualifies(3, 2), true, "qualifies: best above line")
   eq(Derived.qualifies(1, 2), false, "qualifies: best below line")
 
+  eq(Derived.effectiveLine(nil, "champion"), 2, "effectiveLine: nil inherits account default")
+  eq(Derived.effectiveLine("hero", "champion"), 3, "effectiveLine: override wins")
+  eq(Derived.effectiveLine("veteran", "myth"), 1, "effectiveLine: veteran override")
+  eq(Derived.effectiveLine("off", "champion"), 2, "effectiveLine: 'off' falls back to default (handled by effectiveTracked)")
+
   -- sticky eligibility: prev true stays true; else true iff any progress
   eq(Derived.observeEligibility(true, untouched), true, "eligibility sticky when prev true")
   eq(Derived.observeEligibility(false, untouched), false, "eligibility false when untouched + prev false")
