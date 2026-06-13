@@ -3,8 +3,11 @@ local F = {}
 
 -- A track is 3 tiers ascending by threshold.
 local function track(t1, t2, t3) return { t1, t2, t3 } end
-local function tier(threshold, progress, rewardIlvl)
-  return { threshold = threshold, progress = progress, level = 0, rewardIlvl = rewardIlvl or 0 }
+local function tier(threshold, progress, rewardIlvl, rewardTier)
+  return {
+    threshold = threshold, progress = progress, level = 0,
+    rewardIlvl = rewardIlvl or 0, rewardTier = rewardTier or 0,
+  }
 end
 F.track, F.tier = track, tier
 
