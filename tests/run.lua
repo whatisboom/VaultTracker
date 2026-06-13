@@ -234,5 +234,16 @@ do
   eq(Derived.staleKeys(chars, now, 4, "Old-X")["Old-X"], nil, "staleKeys respects keepKey")
 end
 
+-- ===== Countdown formatting (drop leading zero units, weekly 0..7d range) =====
+do
+  local Format = ns.Format
+  eq(Format.countdown(6 * 86400 + 6 * 3600 + 30 * 60), "6d 6h 30m", "countdown days+hours+minutes")
+  eq(Format.countdown(6 * 3600 + 30 * 60), "6h 30m", "countdown drops zero days")
+  eq(Format.countdown(30 * 60), "30m", "countdown drops zero days+hours")
+  eq(Format.countdown(6 * 86400 + 30 * 60), "6d 0h 30m", "countdown keeps middle zero hour")
+  eq(Format.countdown(0), "0m", "countdown zero is 0m")
+  eq(Format.countdown(86400 + 3599), "1d 0h 59m", "countdown truncates sub-minute")
+end
+
 print(("\n%d passed, %d failed"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -107,7 +107,6 @@ function Broker:OnTooltip(tt)
     end
   end
   local secs = C_DateAndTime.GetSecondsUntilWeeklyReset() or 0
-  tt:AddLine((ns.L.BROKER_RESET):format(math.floor(secs / 3600), math.floor((secs % 3600) / 60)),
-    0.5, 0.5, 0.5)
+  tt:AddLine((ns.L.BROKER_RESET):format(ns.Format.countdown(secs)), 0.5, 0.5, 0.5)
   tt:AddLine(ns.L.BROKER_FOOTER, 0.4, 0.4, 0.4)
 end

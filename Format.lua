@@ -34,6 +34,24 @@ function Format.tooltipReason(entry, char)
   return (L.REASON_SLOTS):format(unlocked, total)
 end
 
+-- A "Xd Yh Zm" countdown from a second count, dropping leading zero units (a
+-- 6-hour gap reads "6h 30m", not "0d 6h 30m"). Once the highest non-zero unit is
+-- shown, lower units follow even when zero ("6d 0h 30m"). Sub-minute remainders
+-- are truncated; zero is "0m".
+function Format.countdown(secs)
+  local L = ns.L
+  local days = math.floor(secs / 86400)
+  local hours = math.floor((secs % 86400) / 3600)
+  local minutes = math.floor((secs % 3600) / 60)
+  if days > 0 then
+    return ("%s %s %s"):format(
+      (L.COUNTDOWN_D):format(days), (L.COUNTDOWN_H):format(hours), (L.COUNTDOWN_M):format(minutes))
+  elseif hours > 0 then
+    return ("%s %s"):format((L.COUNTDOWN_H):format(hours), (L.COUNTDOWN_M):format(minutes))
+  end
+  return (L.COUNTDOWN_M):format(minutes)
+end
+
 -- The login chat-summary lines: one per character needing attention, or a single
 -- "all caught up" line when the attention list is empty.
 function Format.summary(list, chars)
