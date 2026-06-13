@@ -326,6 +326,8 @@ Confirms how to read a reward's upgrade tier ordinal (1–4) from an earned slot
 
 - [ ] **Step 4: Record outcome** in the spec and in Task 11 (the confirmed line `type` or global string, and whether name-parsing is needed). No commit (investigation only).
 
+**RESULT (verified 2026-06-13, char "Gigantor"):** the upgrade line is **`line.type == 32`**, `leftText = "Upgrade Level: Myth 1/6"` on a 272 dungeon reward. No structured ordinal field — parse the localized tier name from the type-32 line and map via `L.TIER_*`. Must anchor to type 32: line "Mythic+" (type 0) would false-match a bare "Myth" search. Enum name for value 32: **`Enum.TooltipDataLineType.ItemUpgradeLevel`** (verified 2026-06-13). Task 11 uses `(Enum.TooltipDataLineType.ItemUpgradeLevel or 32)`.
+
 ### Task 8: Spike — current-season key for the high-water reset
 
 Confirms an identifier that changes at season rollover, to reset `entry.bestTier`. Feeds Task 12.
@@ -341,6 +343,8 @@ Confirms an identifier that changes at season rollover, to reset `entry.bestTier
 
 - [ ] **Step 3: If none is reliably available, record the fallback decision:** no auto-reset; `entry.bestTier` persists until `Clear cache`. Update the spec's "Open verification" accordingly. No commit.
 
+**RESULT (verified 2026-06-13):** `C_MythicPlus.GetCurrentSeason()` = `17`; `C_PvP.GetActiveSeason()` = nil. Use `<<SEASON>>` = `(C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason())` and key the reset on `entry.bestTierSeason`.
+
 ### Task 9: Spike — max-level API
 
 Confirms the expansion cap call. Feeds Tasks 11 and 14.
@@ -353,6 +357,8 @@ Confirms the expansion cap call. Feeds Tasks 11 and 14.
 
 - [ ] **Step 2: Record which call returns the expansion cap** (expected `GetMaxLevelForPlayerExpansion()`); use it verbatim in Tasks 11 and 14. No commit.
 
+**RESULT (verified 2026-06-13):** `GetMaxLevelForPlayerExpansion()` = `90` (= `GetMaxPlayerLevel()`). Use `GetMaxLevelForPlayerExpansion()`.
+
 ### Task 10: Spike — roster row right-click menu on 12.x
 
 Confirms the context-menu API for the per-character tier menu. Feeds Task 13 (Roster).
@@ -363,7 +369,9 @@ Confirms the context-menu API for the per-character tier menu. Feeds Task 13 (Ro
 /run MenuUtil.CreateContextMenu(UIParent, function(_, root) root:CreateTitle("VT test"); root:CreateRadio("Champion", function() return false end, function() print("picked") end) end)
 ```
 
-- [ ] **Step 2: Confirm a context menu appears and the callback fires.** Record the exact `MenuUtil`/`root` methods that work (title, radio, divider). Use them verbatim in Task 13. No commit.
+- [ ] **Step 2: Confirm a context menu appears and the callback fires.** Record the exact `MenuUtil`/`root` methods that work (title, radio, divider). Use them verbatim in Task 16. No commit.
+
+**RESULT (verified 2026-06-13):** `MenuUtil.CreateContextMenu(owner, func)` opens at the cursor; `root:CreateTitle`, `root:CreateRadio(text, isSelected, onClick)` work and the onClick fires. Use these in Task 16 (Roster); `root:CreateDivider()` assumed available (same menu API).
 
 ---
 
