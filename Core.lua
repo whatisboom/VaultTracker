@@ -25,10 +25,17 @@ function VaultTracker:OnEnable()
 end
 
 function VaultTracker:Prune()
+  local chars = ns.db.global.characters
+  -- Unconditional cap-bump cleanup: drop characters now below the level cap (e.g.
+  -- after an expansion raised it). Independent of the opt-in autoPrune below.
+  for key in pairs(ns.Derived.belowMaxKeys(chars, GetMaxLevelForPlayerExpansion())) do
+    chars[key] = nil
+  end
+  -- Staleness pruning (opt-in).
   local s = ns.db.global.settings
   if not s.autoPrune then return end
-  for key in pairs(ns.Derived.staleKeys(ns.db.global.characters, time(), s.pruneWeeks)) do
-    ns.db.global.characters[key] = nil
+  for key in pairs(ns.Derived.staleKeys(chars, time(), s.pruneWeeks)) do
+    chars[key] = nil
   end
 end
 
