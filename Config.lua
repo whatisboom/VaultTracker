@@ -7,6 +7,8 @@ Config.defaults = {
     characters = {},  -- bespoke cache, keyed by "name-realm" (see VaultTracker-spec.md)
     settings = {
       thresholdHours = 48,
+      seriousness = "champion",  -- account-default tier line: veteran/champion/hero/myth
+      showIgnored = false,       -- roster: reveal untracked/ignored characters (greyed)
       triggers = { banked = true, untouched = true, incomplete = true },
       minimap = { hide = false },
       chatSummary = false,   -- print a who-needs-attention summary on login/reload
@@ -48,6 +50,25 @@ local function options()
           s.minimap.hide = not v
           local DBIcon = LibStub("LibDBIcon-1.0")
           if v then DBIcon:Show("VaultTracker") else DBIcon:Hide("VaultTracker") end
+        end,
+      },
+      trackHeader = { type = "header", order = 0.4, name = L.OPT_HDR_TRACKING },
+      seriousness = {
+        type = "select", order = 0.5, width = 1.5, name = L.OPT_SERIOUSNESS,
+        desc = L.OPT_SERIOUSNESS_DESC,
+        values = { veteran = L.TIER_VETERAN, champion = L.TIER_CHAMPION,
+                   hero = L.TIER_HERO, myth = L.TIER_MYTH },
+        sorting = { "veteran", "champion", "hero", "myth" },
+        get = function() return s.seriousness end,
+        set = function(_, v) s.seriousness = v; ns.Broker:Update() end,
+      },
+      showIgnored = {
+        type = "toggle", order = 0.6, width = "full", name = L.OPT_SHOWIGNORED,
+        desc = L.OPT_SHOWIGNORED_DESC,
+        get = function() return s.showIgnored end,
+        set = function(_, v)
+          s.showIgnored = v
+          if ns.Roster.frame and ns.Roster.frame:IsShown() then ns.Roster:Refresh() end
         end,
       },
       remHeader = { type = "header", order = 1, name = L.OPT_HDR_REMINDERS },
