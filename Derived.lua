@@ -75,6 +75,14 @@ function Derived.qualifies(bestTier, line)
   return bestTier > 0 and bestTier >= line
 end
 
+-- Resolve a character's tier line to an ordinal. nil (auto) -> account default.
+-- Always returns an ordinal; "off" is handled by effectiveTracked, not here, so a
+-- stray "off" falls back to the account default rather than erroring.
+function Derived.effectiveLine(trackTier, accountDefault)
+  local name = (trackTier and trackTier ~= "off") and trackTier or accountDefault
+  return Derived.TIER[name] or Derived.TIER.champion
+end
+
 function Derived.isMaxed(period)
   for _, track in pairs(period.tracks) do
     for _, tier in ipairs(track) do
