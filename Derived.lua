@@ -83,6 +83,15 @@ function Derived.effectiveLine(trackTier, accountDefault)
   return Derived.TIER[name] or Derived.TIER.champion
 end
 
+-- The display/attention gate: is this character currently tracked? Reads the
+-- season high-water bestTier live against the effective line, so raising a line
+-- drops the character immediately. "off" silences everywhere.
+function Derived.effectiveTracked(entry, accountDefault)
+  if entry.trackTier == "off" then return false end
+  local line = Derived.effectiveLine(entry.trackTier, accountDefault)
+  return Derived.qualifies(entry.bestTier or 0, line)
+end
+
 function Derived.isMaxed(period)
   for _, track in pairs(period.tracks) do
     for _, tier in ipairs(track) do

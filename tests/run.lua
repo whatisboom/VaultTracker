@@ -76,6 +76,20 @@ do
   eq(Derived.effectiveLine("veteran", "myth"), 1, "effectiveLine: veteran override")
   eq(Derived.effectiveLine("off", "champion"), 2, "effectiveLine: 'off' falls back to default (handled by effectiveTracked)")
 
+  -- effectiveTracked: combines bestTier high-water with the effective line
+  eq(Derived.effectiveTracked({ bestTier = 2, trackTier = nil }, "champion"), true,
+     "tracked: champion best meets champion default")
+  eq(Derived.effectiveTracked({ bestTier = 1, trackTier = nil }, "champion"), false,
+     "tracked: veteran best below champion default")
+  eq(Derived.effectiveTracked({ bestTier = 1, trackTier = "veteran" }, "champion"), true,
+     "tracked: veteran override lets a veteran-best char in")
+  eq(Derived.effectiveTracked({ bestTier = 2, trackTier = "hero" }, "champion"), false,
+     "tracked: raising line to hero drops a champion-best char immediately")
+  eq(Derived.effectiveTracked({ bestTier = 4, trackTier = "off" }, "champion"), false,
+     "tracked: 'off' is never tracked regardless of bestTier")
+  eq(Derived.effectiveTracked({ trackTier = nil }, "champion"), false,
+     "tracked: missing bestTier treated as 0")
+
   -- sticky eligibility: prev true stays true; else true iff any progress
   eq(Derived.observeEligibility(true, untouched), true, "eligibility sticky when prev true")
   eq(Derived.observeEligibility(false, untouched), false, "eligibility false when untouched + prev false")
