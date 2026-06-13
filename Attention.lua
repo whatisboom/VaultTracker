@@ -28,16 +28,20 @@ function Attention.build(characters, settings, secondsToReset)
   end
 
   for key, char in pairs(characters) do
-    if settings.triggers.banked and char.hasPendingLoot then
-      add(key, char, "banked")
-    end
-    if char.eligible and inWindow then
-      local period = Derived.currentPeriod(char)
-      if period then
-        if settings.triggers.untouched and Derived.isUntouched(period) then
-          add(key, char, "untouched")
-        elseif settings.triggers.incomplete and not Derived.isMaxed(period) then
-          add(key, char, "incomplete")
+    -- All attention (banked included) requires the character be tracked: at/above
+    -- the seriousness line and not "off". Ignored characters produce nothing.
+    if Derived.effectiveTracked(char, settings.seriousness) then
+      if settings.triggers.banked and char.hasPendingLoot then
+        add(key, char, "banked")
+      end
+      if inWindow then
+        local period = Derived.currentPeriod(char)
+        if period then
+          if settings.triggers.untouched and Derived.isUntouched(period) then
+            add(key, char, "untouched")
+          elseif settings.triggers.incomplete and not Derived.isMaxed(period) then
+            add(key, char, "incomplete")
+          end
         end
       end
     end

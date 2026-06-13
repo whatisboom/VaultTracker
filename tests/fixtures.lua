@@ -48,9 +48,10 @@ function F.char(opts)
     realm = opts.realm or "Fenris",
     class = opts.class or "PRIEST",
     ilvl = opts.ilvl or 148,
+    level = opts.level or 80,
     hasPendingLoot = opts.hasPendingLoot or false,
-    eligible = opts.eligible or false,
-    eligibleAt = opts.eligibleAt,
+    bestTier = opts.bestTier or 0,
+    trackTier = opts.trackTier,
     currentWeekId = weekId,
     periods = { [weekId] = opts.period or F.untouchedPeriod() },
   }

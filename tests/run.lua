@@ -109,50 +109,61 @@ do
   local HOUR = 3600
   local settings = {
     thresholdHours = 48,
+    seriousness = "champion",
     triggers = { banked = true, untouched = true, incomplete = true },
   }
   local inWindow = 10 * HOUR     -- inside 48h
   local outWindow = 100 * HOUR   -- outside 48h
+  -- bestTier=2 (champion) meets the champion default => tracked; 0 => untracked.
 
-  -- banked loot: counts regardless of window or eligibility
+  -- banked loot on a tracked char: counts regardless of window
   local chars = {
-    ["A-X"] = F.char({ name="A", realm="X", hasPendingLoot=true, eligible=false,
+    ["A-X"] = F.char({ name="A", realm="X", hasPendingLoot=true, bestTier=2,
                        period=F.maxedPeriod() }),
   }
   local list = Attention.build(chars, settings, outWindow)
-  eq(#list, 1, "banked counts outside window")
+  eq(#list, 1, "tracked banked counts outside window")
   eq(list[1].severity, "red", "banked is red severity")
   eq(list[1].reasons[1], "banked", "banked reason")
 
-  -- untouched eligible char inside window -> amber
+  -- banked loot on an UNtracked char is silent (off, or below the line)
   chars = {
-    ["B-X"] = F.char({ name="B", realm="X", eligible=true, period=F.untouchedPeriod() }),
+    ["Off-X"] = F.char({ name="Off", realm="X", hasPendingLoot=true, trackTier="off",
+                         bestTier=4, period=F.maxedPeriod() }),
+    ["Low-X"] = F.char({ name="Low", realm="X", hasPendingLoot=true, bestTier=0,
+                         period=F.maxedPeriod() }),
   }
-  eq(#Attention.build(chars, settings, inWindow), 1, "untouched eligible in-window counts")
+  eq(#Attention.build(chars, settings, outWindow), 0, "untracked banked is silent")
+
+  -- untouched tracked char inside window -> amber
+  chars = {
+    ["B-X"] = F.char({ name="B", realm="X", bestTier=2, period=F.untouchedPeriod() }),
+  }
+  eq(#Attention.build(chars, settings, inWindow), 1, "untouched tracked in-window counts")
   eq(#Attention.build(chars, settings, outWindow), 0, "untouched outside window does not count")
 
-  -- ineligible untouched char never counts (the bank-alt case)
+  -- untracked untouched char never counts (the bank-alt case)
   chars = {
-    ["C-X"] = F.char({ name="C", realm="X", eligible=false, period=F.untouchedPeriod() }),
+    ["C-X"] = F.char({ name="C", realm="X", bestTier=0, period=F.untouchedPeriod() }),
   }
-  eq(#Attention.build(chars, settings, inWindow), 0, "ineligible untouched stays silent")
+  eq(#Attention.build(chars, settings, inWindow), 0, "untracked untouched stays silent")
 
-  -- incomplete (partial) eligible char inside window -> amber, reason incomplete
+  -- incomplete (partial) tracked char inside window -> amber, reason incomplete
   chars = {
-    ["D-X"] = F.char({ name="D", realm="X", eligible=true, period=F.partialPeriod() }),
+    ["D-X"] = F.char({ name="D", realm="X", bestTier=2, period=F.partialPeriod() }),
   }
   list = Attention.build(chars, settings, inWindow)
-  eq(list[1].reasons[1], "incomplete", "partial eligible -> incomplete")
+  eq(list[1].reasons[1], "incomplete", "partial tracked -> incomplete")
 
-  -- maxed eligible char -> nothing
+  -- maxed tracked char -> nothing
   chars = {
-    ["E-X"] = F.char({ name="E", realm="X", eligible=true, period=F.maxedPeriod() }),
+    ["E-X"] = F.char({ name="E", realm="X", bestTier=2, period=F.maxedPeriod() }),
   }
   eq(#Attention.build(chars, settings, inWindow), 0, "maxed needs no attention")
 
   -- a char both banked and untouched -> single entry, red, two reasons
   chars = {
-    ["F-X"] = F.char({ name="F", realm="X", hasPendingLoot=true, eligible=true,
+    ["F-X"] = F.char({ name="F", realm="X", hasPendingLoot=true, bestTier=2,
                        period=F.untouchedPeriod() }),
   }
   list = Attention.build(chars, settings, inWindow)
@@ -160,15 +171,17 @@ do
   eq(list[1].severity, "red", "banked+untouched is red")
   eq(#list[1].reasons, 2, "banked+untouched has two reasons")
 
-  -- triggers toggle off suppresses
-  local off = { thresholdHours = 48, triggers = { banked=false, untouched=true, incomplete=true } }
-  chars = { ["G-X"] = F.char({ name="G", realm="X", hasPendingLoot=true, period=F.maxedPeriod() }) }
+  -- triggers toggle off suppresses (char is tracked so the trigger is what gates)
+  local off = { thresholdHours = 48, seriousness = "champion",
+                triggers = { banked=false, untouched=true, incomplete=true } }
+  chars = { ["G-X"] = F.char({ name="G", realm="X", hasPendingLoot=true, bestTier=2,
+                               period=F.maxedPeriod() }) }
   eq(#Attention.build(chars, off, inWindow), 0, "banked trigger off suppresses banked")
 
   -- summary: red beats amber, count is distinct chars
   chars = {
-    ["H-X"] = F.char({ name="H", realm="X", hasPendingLoot=true, period=F.maxedPeriod() }),
-    ["I-X"] = F.char({ name="I", realm="X", eligible=true, period=F.untouchedPeriod() }),
+    ["H-X"] = F.char({ name="H", realm="X", hasPendingLoot=true, bestTier=2, period=F.maxedPeriod() }),
+    ["I-X"] = F.char({ name="I", realm="X", bestTier=2, period=F.untouchedPeriod() }),
   }
   local s = Attention.summary(Attention.build(chars, settings, inWindow))
   eq(s.count, 2, "summary counts 2 chars")
@@ -176,9 +189,9 @@ do
 
   -- sort comparator: red before amber, then by name ascending
   chars = {
-    ["Zed-X"] = F.char({ name="Zed", realm="X", hasPendingLoot=true, period=F.maxedPeriod() }),
-    ["Bob-X"] = F.char({ name="Bob", realm="X", eligible=true, period=F.untouchedPeriod() }),
-    ["Ann-X"] = F.char({ name="Ann", realm="X", eligible=true, period=F.untouchedPeriod() }),
+    ["Zed-X"] = F.char({ name="Zed", realm="X", hasPendingLoot=true, bestTier=2, period=F.maxedPeriod() }),
+    ["Bob-X"] = F.char({ name="Bob", realm="X", bestTier=2, period=F.untouchedPeriod() }),
+    ["Ann-X"] = F.char({ name="Ann", realm="X", bestTier=2, period=F.untouchedPeriod() }),
   }
   list = Attention.build(chars, settings, inWindow)
   eq(list[1].name, "Zed", "sort: red entry first despite Z name")
@@ -187,14 +200,14 @@ do
   eq(list[3].name, "Bob", "sort: Bob last")
 
   -- window boundary + nil contract
-  chars = { ["B-X"] = F.char({ name="B", realm="X", eligible=true, period=F.untouchedPeriod() }) }
+  chars = { ["B-X"] = F.char({ name="B", realm="X", bestTier=2, period=F.untouchedPeriod() }) }
   eq(#Attention.build(chars, settings, 48 * HOUR), 1, "exactly 48h is inside window (inclusive)")
   eq(#Attention.build(chars, settings, nil), 0, "nil secondsToReset is out of window")
 
   -- untouched takes priority over incomplete: exactly one reason, not both
-  chars = { ["U-X"] = F.char({ name="U", realm="X", eligible=true, period=F.untouchedPeriod() }) }
+  chars = { ["U-X"] = F.char({ name="U", realm="X", bestTier=2, period=F.untouchedPeriod() }) }
   list = Attention.build(chars, settings, inWindow)
-  eq(#list[1].reasons, 1, "untouched eligible has exactly one reason")
+  eq(#list[1].reasons, 1, "untouched tracked has exactly one reason")
   eq(list[1].reasons[1], "untouched", "untouched, not incomplete")
 end
 
