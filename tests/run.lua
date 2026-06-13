@@ -55,6 +55,17 @@ do
   eq(Derived.isUntouched(untouched), true, "isUntouched untouched")
   eq(Derived.isUntouched(partial), false, "isUntouched partial")
 
+  -- tier ordinals + best earned tier across all tracks
+  eq(Derived.TIER.veteran, 1, "TIER veteran=1")
+  eq(Derived.TIER.myth, 4, "TIER myth=4")
+  -- a period where the highest *earned* slot carries rewardTier 3 (hero)
+  local tp = F.period(
+    F.track(F.tier(2,2,272,2), F.tier(4,4,268,3), F.tier(6,0,0,0)),  -- raid: champ, hero earned
+    F.track(F.tier(1,1,272,1), F.tier(4,0,0,0), F.tier(8,0,0,0)),    -- dungeon: veteran earned
+    F.track(F.tier(2,2,272,1), F.tier(4,2,0,0), F.tier(8,2,0,0)))    -- world: veteran earned
+  eq(Derived.bestEarnedTier(tp), 3, "bestEarnedTier = 3 (hero, earned)")
+  eq(Derived.bestEarnedTier(F.untouchedPeriod()), 0, "bestEarnedTier 0 when nothing earned")
+
   -- sticky eligibility: prev true stays true; else true iff any progress
   eq(Derived.observeEligibility(true, untouched), true, "eligibility sticky when prev true")
   eq(Derived.observeEligibility(false, untouched), false, "eligibility false when untouched + prev false")

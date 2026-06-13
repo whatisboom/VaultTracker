@@ -54,6 +54,22 @@ function Derived.bestIlvl(period)
   return best
 end
 
+Derived.TIER = { veteran = 1, champion = 2, hero = 3, myth = 4 }
+
+-- Max earned reward tier across all tracks of a period (0 if nothing earned).
+-- Reads tier.rewardTier (set by Scanner from the reward's "Upgrade Level" line).
+function Derived.bestEarnedTier(period)
+  local best = 0
+  for _, track in pairs(period.tracks) do
+    for _, tier in ipairs(track) do
+      if tier.progress >= tier.threshold and (tier.rewardTier or 0) > best then
+        best = tier.rewardTier
+      end
+    end
+  end
+  return best
+end
+
 function Derived.isMaxed(period)
   for _, track in pairs(period.tracks) do
     for _, tier in ipairs(track) do
