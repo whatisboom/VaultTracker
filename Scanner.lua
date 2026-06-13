@@ -108,6 +108,16 @@ function Scanner:Scan()
   entry.periods = entry.periods or {}
   entry.periods[currentWeekId] = period
 
+  -- Season high-water reward tier: best earned tier seen this season, reset when the
+  -- M+ season changes. The tracked gate reads this live (Derived.effectiveTracked),
+  -- so raising a line drops a character immediately.
+  local season = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
+  if season and entry.bestTierSeason ~= season then
+    entry.bestTier, entry.bestTierSeason = 0, season
+  end
+  entry.bestTier = math.max(entry.bestTier or 0, Derived.bestEarnedTier(period))
+  entry.eligible, entry.eligibleAt = nil, nil  -- drop old fields
+
   -- Banked-period deletion rule (per spec): no pending loot => clear older periods.
   if not entry.hasPendingLoot then
     for wk in pairs(entry.periods) do

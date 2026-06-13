@@ -110,15 +110,6 @@ function Derived.isUntouched(period)
   return true
 end
 
--- Sticky per-season eligibility: once a character has shown any progress, it
--- stays eligible (so an untouched-this-week raider still nudges); a bank alt
--- that never progresses never becomes eligible.
-function Derived.observeEligibility(prevEligible, currentPeriod)
-  if prevEligible then return true end
-  if not currentPeriod then return false end
-  return not Derived.isUntouched(currentPeriod)
-end
-
 function Derived.currentPeriod(char)
   return char.periods and char.periods[char.currentWeekId] or nil
 end
