@@ -66,6 +66,11 @@ do
   eq(Derived.bestEarnedTier(tp), 3, "bestEarnedTier = 3 (hero, earned)")
   eq(Derived.bestEarnedTier(F.untouchedPeriod()), 0, "bestEarnedTier 0 when nothing earned")
 
+  eq(Derived.qualifies(0, 1), false, "qualifies: 0 best never qualifies even at line 1")
+  eq(Derived.qualifies(2, 2), true, "qualifies: best == line")
+  eq(Derived.qualifies(3, 2), true, "qualifies: best above line")
+  eq(Derived.qualifies(1, 2), false, "qualifies: best below line")
+
   -- sticky eligibility: prev true stays true; else true iff any progress
   eq(Derived.observeEligibility(true, untouched), true, "eligibility sticky when prev true")
   eq(Derived.observeEligibility(false, untouched), false, "eligibility false when untouched + prev false")
