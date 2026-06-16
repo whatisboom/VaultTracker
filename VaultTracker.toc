@@ -1,5 +1,5 @@
 ## Interface: 120005
-## Title: VaultTracker
+## Title: Vault Tracker
 ## Notes: Account-wide Great Vault nudge tracker
 ## Author: brandon
 ## Version: @project-version@

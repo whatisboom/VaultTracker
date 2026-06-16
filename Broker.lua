@@ -91,7 +91,7 @@ local function classHex(class)
 end
 
 function Broker:OnTooltip(tt)
-  tt:AddLine("VaultTracker")
+  tt:AddLine("Vault Tracker")
   local chars = ns.db.global.characters
   local list = self:Current()
   if #list == 0 then

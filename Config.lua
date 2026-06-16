@@ -41,7 +41,7 @@ local function options()
   local L = ns.L
   return {
     type = "group",
-    name = "VaultTracker",
+    name = "Vault Tracker",
     args = {
       minimap = {
         type = "toggle", order = 0, width = "full", name = L.OPT_MINIMAP,
@@ -192,7 +192,7 @@ function Config:Setup(addon)
   local dialog = LibStub("AceConfigDialog-3.0")
   -- AddToBlizOptions returns the frame and the Settings category ID; keep the ID
   -- so we open WoW's native AddOns settings panel rather than Ace's floating window.
-  local _, categoryID = dialog:AddToBlizOptions("VaultTracker", "VaultTracker")
+  local _, categoryID = dialog:AddToBlizOptions("VaultTracker", "Vault Tracker")
   self.blizCategory = categoryID
   addon:RegisterChatCommand("vt", function() Config:Open() end)
 end
