@@ -53,7 +53,7 @@ L.OPT_CLEARCACHE         = "Clear cache"
 L.OPT_CLEARCACHE_DESC    = "Wipe all cached characters. They repopulate as you log into them."
 L.OPT_CLEARCACHE_CONFIRM = "Wipe all cached characters?"
 L.OPT_RESET              = "Reset settings"
-L.OPT_RESET_DESC         = "Reset all VaultTracker settings to defaults. Does not touch the character cache."
+L.OPT_RESET_DESC         = "Reset all Vault Tracker settings to defaults. Does not touch the character cache."
 L.OPT_RESET_CONFIRM      = "Reset all settings to defaults?"
 
 -- Tracks (Roster.lua, also column headers)
@@ -64,7 +64,7 @@ L.TRACK_WORLD   = "World"
 -- Roster window (Roster.lua)
 L.ROSTER_COL_NAME       = "Character"
 L.ROSTER_COL_ILVL       = "ilvl"
-L.ROSTER_TITLE          = "Roster"
+L.ROSTER_TITLE          = "Vault Tracker"
 L.ROSTER_SLOT           = "%s Slot %d"
 L.ROSTER_MPLUS          = "Mythic+ %d"
 L.ROSTER_REWARD         = "Reward: item level %d"
