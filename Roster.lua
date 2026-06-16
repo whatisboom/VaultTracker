@@ -86,6 +86,19 @@ local function setRowIcon(tex, char)
   tex:Show()
 end
 
+-- The raid activity's raidString is a localized template carrying a %d for the
+-- slot's boss-kill threshold (e.g. "Defeat %d Midnight Season 1 Bosses"). Fill it
+-- with the threshold; return verbatim when there's no %d (or formatting fails) so an
+-- unexpected template can never error or show a raw placeholder.
+local function raidText(tier)
+  local s = tier.raidString
+  if s and s:find("%d", 1, true) then
+    local ok, out = pcall(string.format, s, tier.threshold)
+    if ok then return out end
+  end
+  return s
+end
+
 -- Tooltip content for one slot. World omits a "source" line until `level` is verified.
 local function fillSlotTooltip(tt, tk, tier, idx)
   tt:AddLine((ns.L.ROSTER_SLOT):format(TRACK_LABEL[tk], idx), 1, 0.82, 0)
@@ -93,7 +106,7 @@ local function fillSlotTooltip(tt, tk, tier, idx)
     if tk == "dungeon" and (tier.level or 0) > 0 then
       tt:AddLine((ns.L.ROSTER_MPLUS):format(tier.level), 1, 1, 1)
     elseif tk == "raid" and tier.raidString then
-      tt:AddLine(tier.raidString, 1, 1, 1)
+      tt:AddLine(raidText(tier), 1, 1, 1)
     end
     if (tier.rewardIlvl or 0) > 0 then
       tt:AddLine((ns.L.ROSTER_REWARD):format(tier.rewardIlvl), 0.4, 0.85, 0.4)
@@ -104,7 +117,7 @@ local function fillSlotTooltip(tt, tk, tier, idx)
     tt:AddLine((ns.L.ROSTER_PROGRESS):format(tier.progress, tier.threshold), 1, 1, 1)
     tt:AddLine((ns.L.ROSTER_UNLOCK_MORE):format(tier.threshold - tier.progress), 0.85, 0.65, 0.2)
     if tk == "raid" and tier.raidString then
-      tt:AddLine(ns.L.ROSTER_THISWEEK .. tier.raidString, 0.7, 0.7, 0.7)
+      tt:AddLine(ns.L.ROSTER_THISWEEK .. raidText(tier), 0.7, 0.7, 0.7)
     end
   end
 end
