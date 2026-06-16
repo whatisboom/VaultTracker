@@ -34,3 +34,4 @@ ignore:
   - tests
   - CLAUDE.md
   - VaultTracker-spec.md
+  - deploy.sh
