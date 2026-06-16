@@ -28,7 +28,9 @@ externals:
   Libs/LibSharedMedia-3.0: https://repos.wowace.com/wow/libsharedmedia-3-0/trunk/LibSharedMedia-3.0
 
 # Dev-only files that should not ship in the packaged addon.
+# (Dotfiles like .pkgmeta / .gitignore are auto-pruned by the packager.)
 ignore:
   - docs
   - tests
   - CLAUDE.md
+  - VaultTracker-spec.md
