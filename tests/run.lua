@@ -229,21 +229,66 @@ do
   u = Derived.periodSlots(F.partialPeriod())
   eq(u, 2, "periodSlots partial unlocked (raid1 + world1)")
 
-  -- bankedBest: best ilvl across periods older than currentWeekId
+  -- bankedPeriod: the latest snapshot older than currentWeekId
   local banked = F.char({ weekId = 2000, period = F.untouchedPeriod() })
-  banked.periods[1000] = F.maxedPeriod()  -- a prior banked period with detail
-  eq(Derived.bankedBest(banked), 272, "bankedBest reads prior period detail")
-  eq(Derived.bankedBest(F.char({ weekId = 2000, period = F.maxedPeriod() })), 0,
-     "bankedBest 0 when no prior periods")
+  banked.periods[900]  = F.partialPeriod()
+  banked.periods[1000] = F.maxedPeriod()  -- newer prior period wins
+  eq(Derived.bankedPeriod(banked), banked.periods[1000], "bankedPeriod picks latest prior")
+  eq(Derived.bankedPeriod(F.char({ weekId = 2000, period = F.maxedPeriod() })), nil,
+     "bankedPeriod nil when no prior periods")
 
-  -- tooltipReason
+  -- bankedRange: min, max, count of claimable banked slots
+  local function rangeOf(period)
+    local c = F.char({ weekId = 2000, period = F.untouchedPeriod() })
+    c.periods[1000] = period
+    return Derived.bankedRange(c)
+  end
+  local lo, hi, n = rangeOf(F.maxedPeriod())
+  eq(lo, 264, "bankedRange maxed min"); eq(hi, 272, "bankedRange maxed max"); eq(n, 9, "bankedRange maxed count")
+  lo, hi, n = rangeOf(F.partialPeriod())
+  eq(lo, 259, "bankedRange partial min"); eq(hi, 272, "bankedRange partial max"); eq(n, 2, "bankedRange partial count")
+  local oneSlot = F.period(
+    F.track(F.tier(2,2,272), F.tier(4,0), F.tier(6,0)),
+    F.track(F.tier(1,0), F.tier(4,0), F.tier(8,0)),
+    F.track(F.tier(2,0), F.tier(4,0), F.tier(8,0)))
+  lo, hi, n = rangeOf(oneSlot)
+  eq(lo, 272, "bankedRange single min"); eq(hi, 272, "bankedRange single max"); eq(n, 1, "bankedRange single count")
+  local noIlvl = F.period(
+    F.track(F.tier(2,2,0), F.tier(4,4,0), F.tier(6,6,0)),
+    F.track(F.tier(1,1,0), F.tier(4,4,0), F.tier(8,8,0)),
+    F.track(F.tier(2,2,0), F.tier(4,4,0), F.tier(8,8,0)))
+  lo, hi, n = rangeOf(noIlvl)
+  eq(n, 0, "bankedRange unresolved -> count 0")
+  eq(select(3, Derived.bankedRange(F.char({ weekId = 2000, period = F.maxedPeriod() }))), 0,
+     "bankedRange count 0 when no prior periods")
+
+  local flatPeriod = F.period(
+    F.track(F.tier(2,2,272), F.tier(4,4,272), F.tier(6,6,272)),
+    F.track(F.tier(1,1,272), F.tier(4,4,272), F.tier(8,8,272)),
+    F.track(F.tier(2,2,272), F.tier(4,4,272), F.tier(8,8,272)))
+
+  -- Format.bankedColumn: roster cell text
   local Format = ns.Format
+  eq(Format.bankedColumn(259, 272, 2), "2: 259–272", "bankedColumn range")
+  eq(Format.bankedColumn(272, 272, 9), "9: 272", "bankedColumn flat")
+  eq(Format.bankedColumn(272, 272, 1), "1: 272", "bankedColumn single")
+  eq(Format.bankedColumn(0, 0, 0), nil, "bankedColumn nil when none")
+
+  -- tooltipReason: banked range / flat / single / none
   local bankedChar = F.char({ weekId = 2000, hasPendingLoot = true, period = F.untouchedPeriod() })
-  bankedChar.periods[1000] = F.maxedPeriod()
-  eq(Format.tooltipReason({ reasons = {"banked"} }, bankedChar), "banked loot, best 272",
-     "tooltipReason banked with best")
+  bankedChar.periods[1000] = F.partialPeriod()
+  eq(Format.tooltipReason({ reasons = {"banked"} }, bankedChar), "banked loot, 2 items 259–272",
+     "tooltipReason banked range")
+  local flatChar = F.char({ weekId = 2000, hasPendingLoot = true, period = F.untouchedPeriod() })
+  flatChar.periods[1000] = flatPeriod
+  eq(Format.tooltipReason({ reasons = {"banked"} }, flatChar), "banked loot, 9 items 272",
+     "tooltipReason banked flat")
+  local oneChar = F.char({ weekId = 2000, hasPendingLoot = true, period = F.untouchedPeriod() })
+  oneChar.periods[1000] = oneSlot
+  eq(Format.tooltipReason({ reasons = {"banked"} }, oneChar), "banked loot, 1 item 272",
+     "tooltipReason banked single")
   eq(Format.tooltipReason({ reasons = {"banked"} }, F.char({ hasPendingLoot = true, period = F.untouchedPeriod() })),
-     "banked loot", "tooltipReason banked without known best")
+     "banked loot", "tooltipReason banked without known detail")
   eq(Format.tooltipReason({ reasons = {"untouched"} }, F.char({ period = F.untouchedPeriod() })),
      "0/9", "tooltipReason untouched is just 0/9, no word")
   eq(Format.tooltipReason({ reasons = {"incomplete"} }, F.char({ period = F.partialPeriod() })),

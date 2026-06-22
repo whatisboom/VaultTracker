@@ -17,9 +17,8 @@ function Format.tooltipReason(entry, char)
   local Derived = ns.Derived
   local L = ns.L
   if has(entry.reasons, "banked") then
-    local best = Derived.bankedBest(char)
-    if best > 0 then return (L.REASON_BANKED_BEST):format(best) end
-    return L.REASON_BANKED
+    local min, max, count = Derived.bankedRange(char)
+    return Format.rangeReason(L.REASON_BANKED, min, max, count)
   end
   local period = Derived.currentPeriod(char)
   if not period then return "" end
@@ -32,6 +31,25 @@ function Format.tooltipReason(entry, char)
     return (L.REASON_SLOTS_BEST):format(unlocked, total, best)
   end
   return (L.REASON_SLOTS):format(unlocked, total)
+end
+
+-- "<prefix>, N items lo–hi" (collapsing to one ilvl or just the prefix). Shared by
+-- confirmed banked loot and the inferred ("likely banked") variant via the prefix.
+function Format.rangeReason(prefix, min, max, count)
+  local L = ns.L
+  if count == 0 then return prefix end
+  if count == 1 then return (L.REASON_RANGE_ONE):format(prefix, min) end
+  if min == max then return (L.REASON_RANGE_FLAT):format(prefix, count, min) end
+  return (L.REASON_RANGE):format(prefix, count, min, max)
+end
+
+-- The roster Banked column cell: "N: lo–hi" (or "N: ilvl" when all the same), or
+-- nil when there's nothing banked (caller renders the empty dash).
+function Format.bankedColumn(min, max, count)
+  local L = ns.L
+  if count == 0 then return nil end
+  if count == 1 or min == max then return (L.ROSTER_BANKED_FLAT):format(count, min) end
+  return (L.ROSTER_BANKED_RANGE):format(count, min, max)
 end
 
 -- A "Xd Yh Zm" countdown from a second count, dropping leading zero units (a

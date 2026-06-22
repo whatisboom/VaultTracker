@@ -21,14 +21,16 @@ local function slotText(tier, dim)
 end
 
 -- Layout: column x-offsets from the frame's left; tracks hold 3 fixed-width slots.
-local COLS_X = { name = 40, ilvl = 160, raid = 208, dungeon = 330, world = 452 }
+-- name and ilvl are fixed; the track group shifts right by BANKED_GAP to make room
+-- for an optional Banked column (only shown when some character has banked loot).
+local COLS_X = { name = 40, ilvl = 160 }
 local TRACKS = { "raid", "dungeon", "world" }
 local TRACK_LABEL = { raid = ns.L.TRACK_RAID, dungeon = ns.L.TRACK_DUNGEON, world = ns.L.TRACK_WORLD }
 local HEADERS = {
   { key = "name", text = ns.L.ROSTER_COL_NAME }, { key = "ilvl", text = ns.L.ROSTER_COL_ILVL },
+  { key = "banked", text = ns.L.ROSTER_COL_BANKED },
   { key = "raid", text = ns.L.TRACK_RAID }, { key = "dungeon", text = ns.L.TRACK_DUNGEON }, { key = "world", text = ns.L.TRACK_WORLD },
 }
-local FRAME_W   = 588
 local ROW_INSET = 8
 local ROW_H     = 22
 local ICON_X    = 16
@@ -36,14 +38,29 @@ local NAME_W    = 116
 local SLOT_W    = 40
 local SLOT_PAD  = 6                  -- right-edge padding for right-aligned slot numbers
 local ILVL_R    = COLS_X.ilvl + 30   -- ilvl column right edge (frame-relative)
--- Vertical separators: x at each group boundary (ilvl|raid, raid|dungeon, dungeon|world).
-local SEP_X = {
-  (ILVL_R + COLS_X.raid) / 2,
-  (COLS_X.raid + 3 * SLOT_W + COLS_X.dungeon) / 2,
-  (COLS_X.dungeon + 3 * SLOT_W + COLS_X.world) / 2,
-}
+local BANKED_W  = 78                 -- banked cell width
+local BANKED_R  = 278                -- banked column right edge (frame-relative), when shown
+local BANKED_GAP = 84                -- track group's rightward shift when banked column is shown
+local RAID_X0   = 208                -- raid group's left x with no banked column
 local HEAD_Y    = -42
 local ROW0_Y    = -64
+
+-- Frame-relative geometry for a given banked-column visibility. Track group shifts;
+-- the first separator brackets ilvl|raid or banked|raid depending on the column.
+local function geometry(showBanked)
+  local raid = RAID_X0 + (showBanked and BANKED_GAP or 0)
+  local dungeon, world = raid + 122, raid + 244
+  return {
+    showBanked = showBanked,
+    raid = raid, dungeon = dungeon, world = world,
+    frameW = world + 3 * SLOT_W + 16,
+    seps = {
+      ((showBanked and BANKED_R or ILVL_R) + raid) / 2,
+      (raid + 3 * SLOT_W + dungeon) / 2,
+      (dungeon + 3 * SLOT_W + world) / 2,
+    },
+  }
+end
 
 -- Row background highlight: per-severity colour and intensity (alpha). The current
 -- character glows gold; an attention character glows red/amber. When the logged-in
@@ -122,10 +139,28 @@ local function fillSlotTooltip(tt, tk, tier, idx)
   end
 end
 
+-- Tooltip for the Banked column: one line per claimable banked slot with its ilvl.
+local function fillBankedTooltip(tt, char)
+  tt:AddLine(ns.L.ROSTER_BANKED_TITLE, 1, 0.82, 0)
+  local period = ns.Derived.bankedPeriod(char)
+  if not period then return end
+  for _, tk in ipairs(TRACKS) do
+    local track = period.tracks[tk]
+    if track then
+      for idx, tier in ipairs(track) do
+        if tier.progress >= tier.threshold and (tier.rewardIlvl or 0) > 0 then
+          tt:AddDoubleLine((ns.L.ROSTER_SLOT):format(TRACK_LABEL[tk], idx),
+            (ns.L.ROSTER_REWARD):format(tier.rewardIlvl), 1, 1, 1, 0.4, 0.85, 0.4)
+        end
+      end
+    end
+  end
+end
+
 local function attentionMap()
   local m = {}
   for _, e in ipairs(ns.Attention.build(ns.db.global.characters, ns.db.global.settings,
-      C_DateAndTime.GetSecondsUntilWeeklyReset())) do
+      C_DateAndTime.GetSecondsUntilWeeklyReset(), time())) do
     m[e.key] = e.severity
   end
   return m
@@ -162,7 +197,7 @@ end
 
 function Roster:CreateFrame()
   local f = CreateFrame("Frame", "VaultTrackerRosterFrame", UIParent, "BackdropTemplate")
-  f:SetSize(FRAME_W, 120)
+  f:SetSize(geometry(false).frameW, 120)
   f:SetPoint("CENTER")
   f:SetFrameStrata("HIGH")
   f:SetBackdrop({
@@ -188,16 +223,13 @@ function Roster:CreateFrame()
   close:SetPoint("TOPRIGHT", -4, -4)
   tinsert(UISpecialFrames, "VaultTrackerRosterFrame")
 
+  -- Header fontstrings are created once and (re)positioned by applyChrome, since the
+  -- track columns shift when the optional Banked column appears.
+  f.headerFS = {}
   for _, h in ipairs(HEADERS) do
     local fs = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     fs:SetText(h.text)
-    if h.key == "name" then
-      fs:SetPoint("TOPLEFT", COLS_X.name, HEAD_Y)
-    elseif h.key == "ilvl" then
-      fs:SetPoint("TOPRIGHT", f, "TOPLEFT", ILVL_R, HEAD_Y); fs:SetJustifyH("RIGHT")
-    else  -- track headers: centred over their three slots
-      fs:SetPoint("TOP", f, "TOPLEFT", COLS_X[h.key] + SLOT_W * 1.5, HEAD_Y)
-    end
+    f.headerFS[h.key] = fs
   end
 
   local rule = f:CreateTexture(nil, "ARTWORK")
@@ -207,16 +239,16 @@ function Roster:CreateFrame()
   rule:SetHeight(1)
 
   -- Vertical separators bracketing the three track groups. On their own layer above
-  -- the rows so the row stripe/glow doesn't wash them out.
+  -- the rows so the row stripe/glow doesn't wash them out. Positioned by applyChrome.
   local sepLayer = CreateFrame("Frame", nil, f)
   sepLayer:SetAllPoints()
   sepLayer:SetFrameLevel(f:GetFrameLevel() + 5)
-  for _, x in ipairs(SEP_X) do
+  f.seps = {}
+  for i = 1, 3 do
     local sep = sepLayer:CreateTexture(nil, "ARTWORK")
     sep:SetColorTexture(1, 1, 1, 0.14)
     sep:SetWidth(1)
-    sep:SetPoint("TOP", f, "TOPLEFT", x, HEAD_Y + 6)
-    sep:SetPoint("BOTTOM", f, "BOTTOMLEFT", x, 12)
+    f.seps[i] = sep
   end
 
   f:SetScript("OnUpdate", function(self, elapsed)
@@ -233,7 +265,7 @@ local function acquireRow(f, i)
   local row = f.rows[i]
   if row then return row end
   row = CreateFrame("Frame", nil, f)
-  row:SetSize(FRAME_W - ROW_INSET * 2, ROW_H)
+  row:SetSize(geometry(false).frameW - ROW_INSET * 2, ROW_H)  -- width re-applied by positionRow
   row:SetPoint("TOPLEFT", ROW_INSET, ROW0_Y - (i - 1) * ROW_H)
   row:EnableMouse(true)
   row:SetScript("OnEnter", function(self) self.hl:Show() end)
@@ -265,14 +297,21 @@ local function acquireRow(f, i)
   row.ilvlText:SetPoint("RIGHT", row, "LEFT", ILVL_R - ROW_INSET, 0)
   row.ilvlText:SetJustifyH("RIGHT")
 
-  -- tracks: three hoverable slot frames each
+  -- banked: a hoverable, right-aligned cell for the banked-loot range/count
+  row.bankedFrame = CreateFrame("Frame", nil, row)
+  row.bankedFrame:SetSize(BANKED_W, ROW_H)
+  row.bankedFrame:SetPoint("RIGHT", row, "LEFT", BANKED_R - ROW_INSET, 0)
+  row.bankedText = row.bankedFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.bankedText:SetPoint("RIGHT")
+  row.bankedText:SetJustifyH("RIGHT")
+
+  -- tracks: three hoverable slot frames each (positioned by positionRow)
   row.slots = {}
   for _, tk in ipairs(TRACKS) do
     row.slots[tk] = {}
     for j = 1, 3 do
       local sf = CreateFrame("Frame", nil, row)
       sf:SetSize(SLOT_W, ROW_H)
-      sf:SetPoint("LEFT", COLS_X[tk] - ROW_INSET + (j - 1) * SLOT_W, 0)
       sf:EnableMouse(true)
       sf.text = sf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
       sf.text:SetPoint("RIGHT", -SLOT_PAD, 0)
@@ -285,6 +324,44 @@ local function acquireRow(f, i)
   return row
 end
 
+-- (Re)position the frame chrome for a layout: frame width, headers (the Banked
+-- header is shown only when geo.showBanked), and the three group separators.
+local function applyChrome(f, geo)
+  f:SetWidth(geo.frameW)
+  local h = f.headerFS
+  h.name:ClearAllPoints();  h.name:SetPoint("TOPLEFT", COLS_X.name, HEAD_Y)
+  h.ilvl:ClearAllPoints();  h.ilvl:SetPoint("TOPRIGHT", f, "TOPLEFT", ILVL_R, HEAD_Y); h.ilvl:SetJustifyH("RIGHT")
+  if geo.showBanked then
+    h.banked:ClearAllPoints()
+    h.banked:SetPoint("TOPRIGHT", f, "TOPLEFT", BANKED_R, HEAD_Y); h.banked:SetJustifyH("RIGHT")
+    h.banked:Show()
+  else
+    h.banked:Hide()
+  end
+  for _, tk in ipairs(TRACKS) do
+    h[tk]:ClearAllPoints(); h[tk]:SetPoint("TOP", f, "TOPLEFT", geo[tk] + SLOT_W * 1.5, HEAD_Y)
+  end
+  for i, x in ipairs(geo.seps) do
+    local sep = f.seps[i]
+    sep:ClearAllPoints()
+    sep:SetPoint("TOP", f, "TOPLEFT", x, HEAD_Y + 6)
+    sep:SetPoint("BOTTOM", f, "BOTTOMLEFT", x, 12)
+  end
+end
+
+-- (Re)position a row's slot frames for the active layout and toggle its banked cell.
+local function positionRow(row, geo)
+  row:SetWidth(geo.frameW - ROW_INSET * 2)
+  for _, tk in ipairs(TRACKS) do
+    for j = 1, 3 do
+      local sf = row.slots[tk][j]
+      sf:ClearAllPoints()
+      sf:SetPoint("LEFT", geo[tk] - ROW_INSET + (j - 1) * SLOT_W, 0)
+    end
+  end
+  if geo.showBanked then row.bankedFrame:Show() else row.bankedFrame:Hide() end
+end
+
 function Roster:Refresh()
   local f = self.frame
   local chars = ns.db.global.characters
@@ -293,15 +370,43 @@ function Roster:Refresh()
   local currentKey = (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
   f.countdown:SetText(resetText())
 
+  -- The Banked column appears only when some shown character has banked loot.
+  local showBanked = false
+  for _, key in ipairs(keys) do
+    if select(3, ns.Derived.bankedRange(chars[key])) > 0 then showBanked = true; break end
+  end
+  local geo = geometry(showBanked)
+  applyChrome(f, geo)
+
   for i, key in ipairs(keys) do
     local char = chars[key]
     local dim = not ns.Derived.effectiveTracked(char, ns.db.global.settings.seriousness)
     local row = acquireRow(f, i)
+    positionRow(row, geo)
 
     setRowIcon(row.icon, char)
     row.nameText:SetText(dim and ("|cff6a6453%s|r"):format(char.name or "?")
       or ("|c%s%s|r"):format(classColor(char.class), char.name or "?"))
     row.ilvlText:SetText(("|cff%s%d|r"):format(dim and "6a6453" or "ffd100", char.ilvl or 0))
+
+    local bmin, bmax, bcount = ns.Derived.bankedRange(char)
+    local bcol = ns.Format.bankedColumn(bmin, bmax, bcount)
+    if bcol then
+      row.bankedText:SetText(("|cff%s%s|r"):format(dim and "6a6453" or "f2c24a", bcol))
+      row.bankedFrame:EnableMouse(true)
+      row.bankedFrame:SetScript("OnEnter", function(self)
+        row.hl:Show()
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        fillBankedTooltip(GameTooltip, char)
+        GameTooltip:Show()
+      end)
+      row.bankedFrame:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
+    else
+      row.bankedText:SetText(("|cff%s%s|r"):format(dim and "5a5444" or "6a6453", ns.L.ROSTER_BANKED_NONE))
+      row.bankedFrame:EnableMouse(false)
+      row.bankedFrame:SetScript("OnEnter", nil)
+      row.bankedFrame:SetScript("OnLeave", nil)
+    end
 
     row.nameFrame:SetScript("OnEnter", function(self)
       row.hl:Show()
