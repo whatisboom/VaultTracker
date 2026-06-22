@@ -49,7 +49,6 @@ do
   eq(ilvls[1], 259, "slotIlvls raid slot1")
   eq(ilvls[2], 0, "slotIlvls raid slot2 (locked)")
 
-  eq(Derived.bestIlvl(partial), 272, "bestIlvl partial = 272 (world slot1)")
   eq(Derived.isMaxed(maxed), true, "isMaxed maxed")
   eq(Derived.isMaxed(partial), false, "isMaxed partial")
   eq(Derived.isUntouched(untouched), true, "isUntouched untouched")
@@ -148,12 +147,24 @@ do
   }
   eq(#Attention.build(chars, settings, inWindow), 0, "untracked untouched stays silent")
 
-  -- incomplete (partial) tracked char inside window -> amber, reason incomplete
+  -- actionable partial slot, tracked, inside window -> amber, reason incomplete + partials
   chars = {
-    ["D-X"] = F.char({ name="D", realm="X", bestTier=2, period=F.partialPeriod() }),
+    ["D-X"] = F.char({ name="D", realm="X", bestTier=2, period=F.nudgePeriod() }),
   }
   list = Attention.build(chars, settings, inWindow)
-  eq(list[1].reasons[1], "incomplete", "partial tracked -> incomplete")
+  eq(list[1].reasons[1], "incomplete", "actionable partial -> incomplete")
+  eq(list[1].partials[1].track, "raid", "incomplete entry carries the partial track")
+  eq(list[1].partials[1].remaining, 1, "incomplete entry carries remaining")
+
+  -- not maxed but nothing close (dungeon 1/4 is 3 away, rest untouched) -> nothing
+  local farPeriod = F.period(
+    F.track(F.tier(2,0), F.tier(4,0), F.tier(6,0)),
+    F.track(F.tier(1,1), F.tier(4,1), F.tier(8,1)),
+    F.track(F.tier(2,0), F.tier(4,0), F.tier(8,0)))
+  chars = {
+    ["D2-X"] = F.char({ name="D2", realm="X", bestTier=2, period=farPeriod }),
+  }
+  eq(#Attention.build(chars, settings, inWindow), 0, "nothing within gap -> no nudge")
 
   -- maxed tracked char -> nothing
   chars = {
@@ -247,21 +258,24 @@ do
   eq(lo, 264, "bankedRange maxed min"); eq(hi, 272, "bankedRange maxed max"); eq(n, 9, "bankedRange maxed count")
   lo, hi, n = rangeOf(F.partialPeriod())
   eq(lo, 259, "bankedRange partial min"); eq(hi, 272, "bankedRange partial max"); eq(n, 2, "bankedRange partial count")
+  -- a single unlocked slot
   local oneSlot = F.period(
     F.track(F.tier(2,2,272), F.tier(4,0), F.tier(6,0)),
     F.track(F.tier(1,0), F.tier(4,0), F.tier(8,0)),
     F.track(F.tier(2,0), F.tier(4,0), F.tier(8,0)))
   lo, hi, n = rangeOf(oneSlot)
   eq(lo, 272, "bankedRange single min"); eq(hi, 272, "bankedRange single max"); eq(n, 1, "bankedRange single count")
+  -- unlocked but no resolved ilvls -> no detail
   local noIlvl = F.period(
     F.track(F.tier(2,2,0), F.tier(4,4,0), F.tier(6,6,0)),
     F.track(F.tier(1,1,0), F.tier(4,4,0), F.tier(8,8,0)),
     F.track(F.tier(2,2,0), F.tier(4,4,0), F.tier(8,8,0)))
   lo, hi, n = rangeOf(noIlvl)
-  eq(n, 0, "bankedRange unresolved -> count 0")
-  eq(select(3, Derived.bankedRange(F.char({ weekId = 2000, period = F.maxedPeriod() }))), 0,
-     "bankedRange count 0 when no prior periods")
+  eq(lo, 0, "bankedRange unresolved min"); eq(hi, 0, "bankedRange unresolved max"); eq(n, 0, "bankedRange unresolved count")
+  lo, hi, n = Derived.bankedRange(F.char({ weekId = 2000, period = F.maxedPeriod() }))
+  eq(n, 0, "bankedRange count 0 when no prior periods")
 
+  -- a flat (all same ilvl) prior period for the flat-format checks below
   local flatPeriod = F.period(
     F.track(F.tier(2,2,272), F.tier(4,4,272), F.tier(6,6,272)),
     F.track(F.tier(1,1,272), F.tier(4,4,272), F.tier(8,8,272)),
@@ -291,8 +305,8 @@ do
      "banked loot", "tooltipReason banked without known detail")
   eq(Format.tooltipReason({ reasons = {"untouched"} }, F.char({ period = F.untouchedPeriod() })),
      "0/9", "tooltipReason untouched is just 0/9, no word")
-  eq(Format.tooltipReason({ reasons = {"incomplete"} }, F.char({ period = F.partialPeriod() })),
-     "2/9, best 272", "tooltipReason incomplete shows slots + best")
+  eq(Format.tooltipReason({ reasons = {"incomplete"}, partials = {{track="dungeon", remaining=1}} },
+     F.char({ period = F.partialPeriod() })), "1 more Mythic+", "tooltipReason incomplete is the nudge action")
 
   -- summary: chat lines
   eq(Format.summary({}, {})[1], "|cff888888All caught up.|r", "summary empty -> all caught up")
@@ -302,6 +316,52 @@ do
   local sList = { { key = "A-X", name = "A", realm = "X", severity = "red", reasons = {"banked"} } }
   eq(Format.summary(sList, { ["A-X"] = sc })[1]:find("banked loot") ~= nil, true,
      "summary line mentions banked loot")
+end
+
+-- ===== Actionable partial-slot nudges =====
+do
+  local Derived = ns.Derived
+  local Format = ns.Format
+  local T = F.track
+  local ti = F.tier
+
+  -- partialSlot: remaining-to-next when partway in and within maxGap; nil otherwise
+  local raid12 = T(ti(2,1), ti(4,1), ti(6,1))   -- 1/2 raid
+  eq(Derived.partialSlot(raid12, 2), 1, "raid 1/2 -> 1 more")
+  eq(Derived.partialSlot(raid12, 1), 1, "raid 1/2 within gap 1")
+  eq(Derived.partialSlot(T(ti(2,2), ti(4,2), ti(6,2)), 2), 2, "raid 2 -> slot2 is 2/4, 2 more")
+  eq(Derived.partialSlot(T(ti(2,3), ti(4,3), ti(6,3)), 2), 1, "raid 3 -> 1 more for slot2")
+  -- the Sinlengua world case: slot1 done (2/2), slot2 reads 2/4 -> 2 more within gap 2
+  eq(Derived.partialSlot(T(ti(2,2), ti(4,2), ti(8,2)), 2), 2, "world 2/4 -> 2 more (gap 2)")
+  eq(Derived.partialSlot(T(ti(1,1), ti(4,1), ti(8,1)), 2), nil, "dungeon 1 -> slot2 is 1/4, 3 away (outside gap 2)")
+  eq(Derived.partialSlot(T(ti(1,1), ti(4,1), ti(8,1)), 3), 3, "dungeon 1 -> 1/4 reachable at gap 3")
+  eq(Derived.partialSlot(T(ti(1,2), ti(4,2), ti(8,2)), 1), nil, "dungeon 2/4 outside gap 1")
+  eq(Derived.partialSlot(T(ti(1,5), ti(4,5), ti(8,5)), 3), 3, "dungeon 5/8 -> 3 more (gap 3)")
+  eq(Derived.partialSlot(T(ti(1,5), ti(4,5), ti(8,5)), 2), nil, "dungeon 5/8 outside gap 2")
+  eq(Derived.partialSlot(T(ti(1,8), ti(4,8), ti(8,8)), 3), nil, "dungeon maxed -> nil")
+  eq(Derived.partialSlot(T(ti(2,0), ti(4,0), ti(8,0)), 3), nil, "untouched -> nil")
+
+  -- partials: across tracks, in raid/dungeon/world order
+  local period = F.period(
+    T(ti(2,1), ti(4,1), ti(6,1)),   -- raid 1/2 -> 1
+    T(ti(1,1), ti(4,1), ti(8,1)),   -- dungeon clean -> none
+    T(ti(2,3), ti(4,3), ti(8,3)))   -- world 3 -> 1 more for slot2
+  local parts = Derived.partials(period, 2)
+  eq(#parts, 2, "two tracks have actionable partials")
+  eq(parts[1].track, "raid", "raid listed first"); eq(parts[1].remaining, 1, "raid remaining")
+  eq(parts[2].track, "world", "world listed second"); eq(parts[2].remaining, 1, "world remaining")
+
+  -- partialPhrase: per-track wording, singular/plural
+  eq(Format.partialPhrase("raid", 1), "1 more raid boss", "raid singular")
+  eq(Format.partialPhrase("raid", 2), "2 more raid bosses", "raid plural")
+  eq(Format.partialPhrase("dungeon", 1), "1 more Mythic+", "dungeon")
+  eq(Format.partialPhrase("dungeon", 3), "3 more Mythic+", "dungeon plural-invariant")
+  eq(Format.partialPhrase("world", 1), "1 more world activity", "world singular")
+  eq(Format.partialPhrase("world", 3), "3 more world activities", "world plural")
+
+  -- nudgeText joins phrases with commas
+  eq(Format.nudgeText({{track="raid", remaining=1}, {track="world", remaining=2}}),
+     "1 more raid boss, 2 more world activities", "nudgeText combines tracks")
 end
 
 -- ===== Inferred ("likely banked") loot for stale alts =====

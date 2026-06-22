@@ -40,6 +40,14 @@ function F.partialPeriod()
     track(tier(2,2,272), tier(4,2), tier(8,2)))
 end
 
+-- A period with an actionable partial slot: raid 1/2 (one more boss), nothing else.
+function F.nudgePeriod()
+  return F.period(
+    track(tier(2,1), tier(4,1), tier(6,1)),
+    track(tier(1,0), tier(4,0), tier(8,0)),
+    track(tier(2,0), tier(4,0), tier(8,0)))
+end
+
 -- Build a character entry around a current period.
 function F.char(opts)
   local weekId = opts.weekId or 1000

@@ -9,6 +9,24 @@ local function has(list, value)
   return false
 end
 
+-- "<prefix>, N items lo–hi" (collapsing to one ilvl or just the prefix). Shared by
+-- confirmed banked loot and the inferred ("likely banked") variant via the prefix.
+function Format.rangeReason(prefix, min, max, count)
+  local L = ns.L
+  if count == 0 then return prefix end
+  if count == 1 then return (L.REASON_RANGE_ONE):format(prefix, min) end
+  if min == max then return (L.REASON_RANGE_FLAT):format(prefix, count, min) end
+  return (L.REASON_RANGE):format(prefix, count, min, max)
+end
+
+-- The list marker glyph for an attention entry: "!" confirmed-urgent (red),
+-- "?" inferred/unconfirmed banked loot, "-" time-pressure (amber).
+function Format.marker(entry)
+  if entry.severity == "red" then return "|cffff5555!|r" end
+  if has(entry.reasons, "maybebanked") then return "|cfff2c24a?|r" end
+  return "|cfff2c24a-|r"
+end
+
 -- The right-hand reason text for one tooltip line.
 -- banked dominates (urgent, separate axis); otherwise the slot fraction carries
 -- the touched/incomplete state, so no "untouched"/"incomplete" words. `best` is
@@ -26,35 +44,30 @@ function Format.tooltipReason(entry, char)
     if period then min, max, count = Derived.periodRange(period) end
     return Format.rangeReason(L.REASON_MAYBE_BANKED, min, max, count)
   end
+  if has(entry.reasons, "incomplete") and entry.partials then
+    return Format.nudgeText(entry.partials)
+  end
   local period = Derived.currentPeriod(char)
   if not period then return "" end
   local unlocked, total = Derived.periodSlots(period)
-  if unlocked == 0 then
-    return (L.REASON_SLOTS):format(unlocked, total)
-  end
-  local best = Derived.bestIlvl(period)
-  if best > 0 then
-    return (L.REASON_SLOTS_BEST):format(unlocked, total, best)
-  end
   return (L.REASON_SLOTS):format(unlocked, total)
 end
 
--- "<prefix>, N items lo–hi" (collapsing to one ilvl or just the prefix). Shared by
--- confirmed banked loot and the inferred ("likely banked") variant via the prefix.
-function Format.rangeReason(prefix, min, max, count)
+-- The per-track action phrase for a partial slot, e.g. "1 more raid boss".
+function Format.partialPhrase(track, n)
   local L = ns.L
-  if count == 0 then return prefix end
-  if count == 1 then return (L.REASON_RANGE_ONE):format(prefix, min) end
-  if min == max then return (L.REASON_RANGE_FLAT):format(prefix, count, min) end
-  return (L.REASON_RANGE):format(prefix, count, min, max)
+  if track == "raid" then return ((n == 1) and L.NUDGE_RAID_ONE or L.NUDGE_RAID):format(n) end
+  if track == "dungeon" then return (L.NUDGE_DUNGEON):format(n) end
+  return ((n == 1) and L.NUDGE_WORLD_ONE or L.NUDGE_WORLD):format(n)  -- world (incl. delves)
 end
 
--- The list marker glyph for an attention entry: "!" confirmed-urgent (red),
--- "?" inferred/unconfirmed banked loot, "-" time-pressure (amber).
-function Format.marker(entry)
-  if entry.severity == "red" then return "|cffff5555!|r" end
-  if has(entry.reasons, "maybebanked") then return "|cfff2c24a?|r" end
-  return "|cfff2c24a-|r"
+-- The full nudge line for a character: the partial phrases joined with commas.
+function Format.nudgeText(partials)
+  local out = {}
+  for _, p in ipairs(partials) do
+    out[#out + 1] = Format.partialPhrase(p.track, p.remaining)
+  end
+  return table.concat(out, ", ")
 end
 
 -- The roster Banked column cell: "N: lo–hi" (or "N: ilvl" when all the same), or
