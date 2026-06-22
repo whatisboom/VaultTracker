@@ -12,10 +12,12 @@ end
 -- characters: map "name-realm" -> char entry
 -- settings: { thresholdHours, triggers = { banked, untouched, incomplete } }
 -- secondsToReset: number or nil
-function Attention.build(characters, settings, secondsToReset)
+-- now: epoch seconds (time()) or nil; enables the stale-alt "likely banked" inference
+function Attention.build(characters, settings, secondsToReset, now)
   local Derived = ns.Derived
   local inWindow = secondsToReset ~= nil
     and secondsToReset <= settings.thresholdHours * 3600
+  local realWeekId = now and Derived.periodKey(now, secondsToReset) or nil
   local byChar = {}
 
   local function add(key, char, reason)
@@ -31,8 +33,12 @@ function Attention.build(characters, settings, secondsToReset)
     -- All attention (banked included) requires the character be tracked: at/above
     -- the seriousness line and not "off". Ignored characters produce nothing.
     if Derived.effectiveTracked(char, settings.seriousness) then
-      if settings.triggers.banked and char.hasPendingLoot then
-        add(key, char, "banked")
+      if settings.triggers.banked then
+        if char.hasPendingLoot then
+          add(key, char, "banked")
+        elseif realWeekId and Derived.likelyBanked(char, realWeekId) then
+          add(key, char, "maybebanked")
+        end
       end
       if inWindow then
         local period = Derived.currentPeriod(char)

@@ -20,6 +20,12 @@ function Format.tooltipReason(entry, char)
     local min, max, count = Derived.bankedRange(char)
     return Format.rangeReason(L.REASON_BANKED, min, max, count)
   end
+  if has(entry.reasons, "maybebanked") then
+    local min, max, count = 0, 0, 0
+    local period = Derived.currentPeriod(char)
+    if period then min, max, count = Derived.periodRange(period) end
+    return Format.rangeReason(L.REASON_MAYBE_BANKED, min, max, count)
+  end
   local period = Derived.currentPeriod(char)
   if not period then return "" end
   local unlocked, total = Derived.periodSlots(period)
@@ -41,6 +47,14 @@ function Format.rangeReason(prefix, min, max, count)
   if count == 1 then return (L.REASON_RANGE_ONE):format(prefix, min) end
   if min == max then return (L.REASON_RANGE_FLAT):format(prefix, count, min) end
   return (L.REASON_RANGE):format(prefix, count, min, max)
+end
+
+-- The list marker glyph for an attention entry: "!" confirmed-urgent (red),
+-- "?" inferred/unconfirmed banked loot, "-" time-pressure (amber).
+function Format.marker(entry)
+  if entry.severity == "red" then return "|cffff5555!|r" end
+  if has(entry.reasons, "maybebanked") then return "|cfff2c24a?|r" end
+  return "|cfff2c24a-|r"
 end
 
 -- The roster Banked column cell: "N: lo–hi" (or "N: ilvl" when all the same), or
@@ -79,8 +93,7 @@ function Format.summary(list, chars)
   end
   local out = {}
   for _, e in ipairs(list) do
-    local marker = (e.severity == "red") and "|cffff5555!|r" or "|cfff2c24a-|r"
-    out[#out + 1] = (L.SUMMARY_LINE):format(marker, e.name, e.realm,
+    out[#out + 1] = (L.SUMMARY_LINE):format(Format.marker(e), e.name, e.realm,
       Format.tooltipReason(e, chars[e.key]))
   end
   return out

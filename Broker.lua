@@ -55,7 +55,7 @@ function Broker:Current()
   return ns.Attention.build(
     ns.db.global.characters,
     ns.db.global.settings,
-    C_DateAndTime.GetSecondsUntilWeeklyReset())
+    C_DateAndTime.GetSecondsUntilWeeklyReset(), time())
 end
 
 function Broker:Update()
@@ -98,9 +98,8 @@ function Broker:OnTooltip(tt)
     tt:AddLine(ns.L.BROKER_NOTHING, 0.6, 0.6, 0.6)
   else
     for _, e in ipairs(list) do
-      -- red "!" for banked urgency, amber "-" for time-pressure
-      local marker = (e.severity == "red") and "|cffff5555!|r" or "|cfff2c24a-|r"
-      local name = ("%s |c%s%s-%s|r"):format(marker, classHex(e.class), e.name, e.realm)
+      -- "!" confirmed banked, "?" likely banked (inferred), "-" time-pressure
+      local name = ("%s |c%s%s-%s|r"):format(ns.Format.marker(e), classHex(e.class), e.name, e.realm)
       local reason = ns.Format.tooltipReason(e, chars[e.key])
       local c = COLORS[e.severity] or COLORS.none
       tt:AddDoubleLine(name, reason, 1, 1, 1, c[1], c[2], c[3])

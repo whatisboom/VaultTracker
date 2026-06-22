@@ -139,10 +139,11 @@ local function fillSlotTooltip(tt, tk, tier, idx)
   end
 end
 
--- Tooltip for the Banked column: one line per claimable banked slot with its ilvl.
-local function fillBankedTooltip(tt, char)
-  tt:AddLine(ns.L.ROSTER_BANKED_TITLE, 1, 0.82, 0)
-  local period = ns.Derived.bankedPeriod(char)
+-- Tooltip for the Banked column: a title, an optional note (the inferred case),
+-- then one line per claimable slot with its ilvl.
+local function fillBankedTooltip(tt, period, title, note)
+  tt:AddLine(title, 1, 0.82, 0)
+  if note then tt:AddLine(note, 0.85, 0.65, 0.2) end
   if not period then return end
   for _, tk in ipairs(TRACKS) do
     local track = period.tracks[tk]
@@ -155,6 +156,20 @@ local function fillBankedTooltip(tt, char)
       end
     end
   end
+end
+
+-- The Banked-column state for one character: "confirmed" (real pending loot),
+-- "likely" (inferred from a stale alt), or nil. Returns the ilvl range and the
+-- period to detail in the hover.
+local function bankedCell(char, realWeekId)
+  local lo, hi, n = ns.Derived.bankedRange(char)
+  if n > 0 then return "confirmed", lo, hi, n, ns.Derived.bankedPeriod(char) end
+  if realWeekId and ns.Derived.likelyBanked(char, realWeekId) then
+    local p = ns.Derived.currentPeriod(char)
+    lo, hi, n = ns.Derived.periodRange(p)
+    return "likely", lo, hi, n, p
+  end
+  return nil
 end
 
 local function attentionMap()
@@ -370,10 +385,12 @@ function Roster:Refresh()
   local currentKey = (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
   f.countdown:SetText(resetText())
 
-  -- The Banked column appears only when some shown character has banked loot.
+  -- The Banked column appears only when some shown character has banked loot
+  -- (confirmed) or is inferred to (a stale alt with unlocked slots last week).
+  local realWeekId = ns.Derived.periodKey(time(), C_DateAndTime.GetSecondsUntilWeeklyReset())
   local showBanked = false
   for _, key in ipairs(keys) do
-    if select(3, ns.Derived.bankedRange(chars[key])) > 0 then showBanked = true; break end
+    if bankedCell(chars[key], realWeekId) then showBanked = true; break end
   end
   local geo = geometry(showBanked)
   applyChrome(f, geo)
@@ -389,15 +406,22 @@ function Roster:Refresh()
       or ("|c%s%s|r"):format(classColor(char.class), char.name or "?"))
     row.ilvlText:SetText(("|cff%s%d|r"):format(dim and "6a6453" or "ffd100", char.ilvl or 0))
 
-    local bmin, bmax, bcount = ns.Derived.bankedRange(char)
-    local bcol = ns.Format.bankedColumn(bmin, bmax, bcount)
-    if bcol then
-      row.bankedText:SetText(("|cff%s%s|r"):format(dim and "6a6453" or "f2c24a", bcol))
+    local kind, blo, bhi, bn, bperiod = bankedCell(char, realWeekId)
+    if kind then
+      local core = ns.Format.bankedColumn(blo, bhi, bn)
+      local txt, color, title, note
+      if kind == "confirmed" then
+        txt, color, title = core, dim and "6a6453" or "f2c24a", ns.L.ROSTER_BANKED_TITLE
+      else  -- likely (inferred): muted amber, "?" prefix, "log in to confirm" note
+        txt = ns.L.ROSTER_MAYBE_PREFIX .. (core or "")
+        color, title, note = dim and "6a6453" or "b9952f", ns.L.ROSTER_MAYBE_TITLE, ns.L.ROSTER_MAYBE_NOTE
+      end
+      row.bankedText:SetText(("|cff%s%s|r"):format(color, txt))
       row.bankedFrame:EnableMouse(true)
       row.bankedFrame:SetScript("OnEnter", function(self)
         row.hl:Show()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        fillBankedTooltip(GameTooltip, char)
+        fillBankedTooltip(GameTooltip, bperiod, title, note)
         GameTooltip:Show()
       end)
       row.bankedFrame:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
