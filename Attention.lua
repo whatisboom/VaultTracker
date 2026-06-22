@@ -45,8 +45,12 @@ function Attention.build(characters, settings, secondsToReset, now)
         if period then
           if settings.triggers.untouched and Derived.isUntouched(period) then
             add(key, char, "untouched")
-          elseif settings.triggers.incomplete and not Derived.isMaxed(period) then
-            add(key, char, "incomplete")
+          elseif settings.triggers.incomplete then
+            local parts = Derived.partials(period, settings.nudgeGap or 1)
+            if #parts > 0 then
+              add(key, char, "incomplete")
+              byChar[key].partials = parts
+            end
           end
         end
       end

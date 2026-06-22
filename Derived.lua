@@ -41,17 +41,38 @@ function Derived.slotIlvls(track)
   return out
 end
 
--- period: { tracks = { raid=, dungeon=, world= } }
-function Derived.bestIlvl(period)
-  local best = 0
-  for _, track in pairs(period.tracks) do
-    for _, tier in ipairs(track) do
-      if tier.progress >= tier.threshold and (tier.rewardIlvl or 0) > best then
-        best = tier.rewardIlvl
-      end
+-- Activities remaining to finish the lowest unmet slot, when it's started (some
+-- progress) and within `maxGap` of unlocking. nil for untouched (lowest unmet slot
+-- has no progress), maxed, or a partial still farther than maxGap. Progress is the
+-- cumulative count the API/UI shows for that slot (each activity counts toward every
+-- higher slot), so a world slot reading 2/4 returns 2. Whether a slot whose count
+-- equals a lower slot's threshold nudges is decided purely by maxGap (e.g. 2/4 is in
+-- reach at gap 2; dungeon 1/4 is 3 away, so it stays quiet).
+function Derived.partialSlot(track, maxGap)
+  for _, tier in ipairs(track) do
+    if tier.progress < tier.threshold then
+      local remaining = tier.threshold - tier.progress
+      if tier.progress > 0 and remaining <= maxGap then return remaining end
+      return nil
     end
   end
-  return best
+  return nil
+end
+
+local PARTIAL_ORDER = { "raid", "dungeon", "world" }
+
+-- Actionable partial slots across a period's tracks, in display order:
+-- { { track = "raid", remaining = 1 }, ... }. Empty when nothing is close.
+function Derived.partials(period, maxGap)
+  local out = {}
+  for _, tk in ipairs(PARTIAL_ORDER) do
+    local track = period.tracks[tk]
+    if track then
+      local remaining = Derived.partialSlot(track, maxGap)
+      if remaining then out[#out + 1] = { track = tk, remaining = remaining } end
+    end
+  end
+  return out
 end
 
 Derived.TIER = { veteran = 1, champion = 2, hero = 3, myth = 4 }

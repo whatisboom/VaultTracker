@@ -10,6 +10,7 @@ Config.defaults = {
       seriousness = "champion",  -- account-default tier line: veteran/champion/hero/myth
       showIgnored = false,       -- roster: reveal untracked/ignored characters (greyed)
       triggers = { banked = true, untouched = true, incomplete = true },
+      nudgeGap = 1,   -- "incomplete" nudges when within this many activities of a slot
       minimap = { hide = false },
       chatSummary = false,   -- print a who-needs-attention summary on login/reload
       bankedSound = false,   -- sound on login/reload if banked loot is waiting
@@ -102,6 +103,13 @@ local function options()
             type = "toggle", order = 3, name = L.OPT_INCOMPLETE,
             get = function() return s.triggers.incomplete end,
             set = function(_, v) s.triggers.incomplete = v; ns.Broker:Update() end,
+          },
+          nudgeGap = {
+            type = "range", order = 3.1, width = 1.2, name = L.OPT_NUDGEGAP, desc = L.OPT_NUDGEGAP_DESC,
+            min = 1, max = 3, step = 1,
+            disabled = function() return not s.triggers.incomplete end,
+            get = function() return s.nudgeGap or 1 end,
+            set = function(_, v) s.nudgeGap = v; ns.Broker:Update() end,
           },
         },
       },
