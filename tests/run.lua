@@ -304,6 +304,59 @@ do
      "summary line mentions banked loot")
 end
 
+-- ===== Inferred ("likely banked") loot for stale alts =====
+do
+  local Derived = ns.Derived
+  local Format = ns.Format
+  local Attention = ns.Attention
+  local WEEK = 7 * 24 * 3600
+
+  -- periodRange: the shared helper bankedRange and the inference both build on
+  local lo, hi, n = Derived.periodRange(F.partialPeriod())
+  eq(lo, 259, "periodRange partial min"); eq(hi, 272, "periodRange partial max"); eq(n, 2, "periodRange partial count")
+
+  -- likelyBanked: exactly one reset stale AND had unlocked slots when last seen
+  local realWk = 600000
+  eq(Derived.likelyBanked(F.char({ weekId = realWk - WEEK, period = F.partialPeriod() }), realWk), true,
+     "stale by one week with unlocked slots -> likely")
+  eq(Derived.likelyBanked(F.char({ weekId = realWk - WEEK, period = F.untouchedPeriod() }), realWk), false,
+     "stale but nothing unlocked -> not likely")
+  eq(Derived.likelyBanked(F.char({ weekId = realWk, period = F.partialPeriod() }), realWk), false,
+     "scanned this week -> not likely")
+  eq(Derived.likelyBanked(F.char({ weekId = realWk - 2 * WEEK, period = F.partialPeriod() }), realWk), false,
+     "two resets stale -> not likely (loot likely cleared)")
+  eq(Derived.likelyBanked(F.char({ weekId = realWk - WEEK, hasPendingLoot = true, period = F.partialPeriod() }), realWk),
+     false, "confirmed pending loot is owned by the banked path, not inferred")
+
+  -- tooltipReason for the inferred reason reads the stale current period
+  local mc = F.char({ weekId = realWk - WEEK, period = F.partialPeriod() })
+  eq(Format.tooltipReason({ reasons = {"maybebanked"} }, mc), "likely banked loot, 2 items 259–272",
+     "tooltipReason maybebanked range")
+
+  -- marker glyphs: "!" confirmed, "?" inferred, "-" time-pressure
+  eq(Format.marker({ severity = "red", reasons = {"banked"} }), "|cffff5555!|r", "marker confirmed")
+  eq(Format.marker({ severity = "amber", reasons = {"maybebanked"} }), "|cfff2c24a?|r", "marker inferred")
+  eq(Format.marker({ severity = "amber", reasons = {"incomplete"} }), "|cfff2c24a-|r", "marker time-pressure")
+
+  -- Attention.build wires the inference (folded into the banked trigger), amber
+  local settings = { thresholdHours = 48, seriousness = "champion",
+                     triggers = { banked = true, untouched = true, incomplete = true } }
+  local NOW, sReset = 2000000, 200 * 3600       -- outside the 48h window -> isolate maybebanked
+  local rwk = Derived.periodKey(NOW, sReset)
+  local chars = {
+    ["S-X"] = F.char({ name = "S", realm = "X", weekId = rwk - WEEK, bestTier = 3, period = F.partialPeriod() }),
+  }
+  local list = Attention.build(chars, settings, sReset, NOW)
+  eq(#list, 1, "stale alt produces one attention entry")
+  eq(list[1].reasons[1], "maybebanked", "inferred reason is maybebanked")
+  eq(list[1].severity, "amber", "inferred banked is amber")
+  eq(Attention.summary(list).color, "amber", "inferred banked badge is amber")
+  eq(#Attention.build(chars, settings, sReset), 0, "no now arg -> inference off")
+  local off = { thresholdHours = 48, seriousness = "champion",
+                triggers = { banked = false, untouched = true, incomplete = true } }
+  eq(#Attention.build(chars, off, sReset, NOW), 0, "banked trigger off suppresses inference")
+end
+
 -- ===== Stale-character pruning =====
 do
   local now = 1000000000

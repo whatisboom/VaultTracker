@@ -55,7 +55,7 @@ function VaultTracker:SessionAnnounce()
   local s = ns.db.global.settings
   local chars = ns.db.global.characters
   if s.chatSummary then
-    local list = ns.Attention.build(chars, s, C_DateAndTime.GetSecondsUntilWeeklyReset())
+    local list = ns.Attention.build(chars, s, C_DateAndTime.GetSecondsUntilWeeklyReset(), time())
     local lines = ns.Format.summary(list, chars)
     for i, line in ipairs(lines) do
       if i == 1 then self:Print(line) else print(line) end

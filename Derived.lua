@@ -198,3 +198,18 @@ function Derived.bankedRange(char)
   if not period then return 0, 0, 0 end
   return Derived.periodRange(period)
 end
+
+-- Heuristic: an alt probably has unclaimed loot we can't confirm. True when the
+-- character hasn't been scanned since the most recent reset (its cached period is
+-- exactly one week stale) yet had unlocked slots when last seen. Limited to one
+-- missed reset, since the game only holds the most recent week's unclaimed loot.
+-- Excludes characters with confirmed pending loot (the "banked" path owns those).
+-- realWeekId = Derived.periodKey(now, secondsToReset).
+function Derived.likelyBanked(char, realWeekId)
+  if char.hasPendingLoot then return false end
+  local cwk = char.currentWeekId
+  if not cwk or (realWeekId - cwk) ~= WEEK then return false end
+  local period = char.periods and char.periods[cwk]
+  if not period then return false end
+  return (Derived.periodSlots(period)) > 0
+end
