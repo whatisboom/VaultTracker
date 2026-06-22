@@ -161,16 +161,40 @@ function Derived.belowMaxKeys(characters, maxLevel)
   return out
 end
 
--- Best reward ilvl across banked (prior-period) snapshots; 0 if none have detail.
-function Derived.bankedBest(char)
-  local best = 0
-  if not char.periods then return 0 end
+-- The latest banked (prior-period) snapshot, or nil. The game holds only the most
+-- recent week's unclaimed loot, so the highest weekId below currentWeekId is what's
+-- actually sitting in the vault.
+function Derived.bankedPeriod(char)
+  if not char.periods then return nil end
   local current = char.currentWeekId or math.huge
+  local bestWk, bestPeriod = nil, nil
   for wk, period in pairs(char.periods) do
-    if wk < current then
-      local b = Derived.bestIlvl(period)
-      if b > best then best = b end
+    if wk < current and (not bestWk or wk > bestWk) then bestWk, bestPeriod = wk, period end
+  end
+  return bestPeriod
+end
+
+-- min, max, count of a period's claimable reward ilvls (unlocked slots with a
+-- resolved rewardIlvl). Returns 0, 0, 0 when none resolve.
+function Derived.periodRange(period)
+  local min, max, count = math.huge, 0, 0
+  for _, track in pairs(period.tracks) do
+    for _, tier in ipairs(track) do
+      if tier.progress >= tier.threshold and (tier.rewardIlvl or 0) > 0 then
+        local il = tier.rewardIlvl
+        if il < min then min = il end
+        if il > max then max = il end
+        count = count + 1
+      end
     end
   end
-  return best
+  if count == 0 then return 0, 0, 0 end
+  return min, max, count
+end
+
+-- min, max, count of the latest banked period's claimable ilvls; 0,0,0 when none.
+function Derived.bankedRange(char)
+  local period = Derived.bankedPeriod(char)
+  if not period then return 0, 0, 0 end
+  return Derived.periodRange(period)
 end
