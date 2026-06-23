@@ -63,14 +63,15 @@ local function geometry(showBanked)
 end
 
 -- Row background highlight: per-severity colour and intensity (alpha). The current
--- character glows gold; an attention character glows red/amber. When the logged-in
--- character also needs attention, the row fades from its attention colour to gold.
+-- character glows a cool blue ("you are here"), deliberately outside the warm
+-- red/amber warning family so it never reads as an alert. When the logged-in
+-- character also needs attention, the row fades from its attention colour to blue.
 local GLOW_COLOR = {
   red     = { 0.85, 0.12, 0.12 },
   amber   = { 0.85, 0.65, 0.12 },
-  current = { 1.0,  0.82, 0.0  },  -- gold, matches the "ffd100" ilvl text
+  current = { 0.25, 0.60, 1.0  },  -- cool blue, distinct from the warm warnings
 }
-local GLOW_ALPHA = { red = 0.14, amber = 0.10, current = 0.14 }
+local GLOW_ALPHA = { red = 0.14, amber = 0.10, current = 0.18 }
 
 -- glow is white; SetGradient filters it. Equal stops = solid fill, differing = fade.
 local function setGlow(tex, c1, a1, c2, a2)
@@ -183,10 +184,12 @@ end
 
 local function sortedKeys(attn)
   local chars = ns.db.global.characters
+  -- Only confirmed banked loot (red, no deadline) floats to the top. Amber soft
+  -- states (untouched / close-to-unlock / likely-banked) glow in place rather than
+  -- reordering the roster; everything else sorts by ilvl then name.
   local function rank(key)
     if attn[key] == "red" then return 0 end
-    if attn[key] == "amber" then return 1 end
-    return 2
+    return 1
   end
   local show = ns.db.global.settings.showIgnored
   local default = ns.db.global.settings.seriousness
@@ -494,11 +497,11 @@ function Roster:Refresh()
 
     if i % 2 == 0 then row.stripe:Show() else row.stripe:Hide() end
     local sev = attn[key]
-    local gold = GLOW_COLOR.current
+    local cur = GLOW_COLOR.current
     if key == currentKey and (sev == "red" or sev == "amber") then
-      setGlow(row.glow, GLOW_COLOR[sev], GLOW_ALPHA[sev], gold, GLOW_ALPHA.current)
+      setGlow(row.glow, GLOW_COLOR[sev], GLOW_ALPHA[sev], cur, GLOW_ALPHA.current)
     elseif key == currentKey then
-      setGlow(row.glow, gold, GLOW_ALPHA.current, gold, GLOW_ALPHA.current)
+      setGlow(row.glow, cur, GLOW_ALPHA.current, cur, GLOW_ALPHA.current)
     elseif sev == "red" or sev == "amber" then
       setGlow(row.glow, GLOW_COLOR[sev], GLOW_ALPHA[sev], GLOW_COLOR[sev], GLOW_ALPHA[sev])
     else
