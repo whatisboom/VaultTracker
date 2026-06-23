@@ -364,6 +364,51 @@ do
      "1 more raid boss, 2 more world activities", "nudgeText combines tracks")
 end
 
+-- ===== Nudge gate: track's earned tier vs the seriousness line =====
+do
+  local Derived = ns.Derived
+  local Attention = ns.Attention
+  local T, ti = F.track, F.tier
+
+  -- trackEarnedTier: max earned rewardTier in one track, 0 if none
+  eq(Derived.trackEarnedTier(T(ti(2,3,259,3), ti(4,0), ti(6,0))), 3, "trackEarnedTier reads earned slot")
+  eq(Derived.trackEarnedTier(T(ti(2,1), ti(4,1), ti(6,1))), 0, "trackEarnedTier 0 when nothing earned")
+
+  -- partialSlot gate: only nudge a track that's revealed a tier at/above the line
+  local raidHero  = T(ti(2,3,259,3), ti(4,3,0,0), ti(6,3,0,0))  -- slot1 Hero earned, slot2 3/4
+  local raidVet   = T(ti(2,3,243,1), ti(4,3,0,0), ti(6,3,0,0))  -- slot1 Veteran earned, slot2 3/4
+  local raidFirst = T(ti(2,1), ti(4,1), ti(6,1))                -- 1/2, nothing earned
+  eq(Derived.partialSlot(raidHero, 1, 2), 1, "earned Hero >= champion line -> nudge")
+  eq(Derived.partialSlot(raidHero, 1, 4), nil, "earned Hero < myth line -> gated")
+  eq(Derived.partialSlot(raidVet, 1, 2), nil, "earned Veteran < champion line -> gated")
+  eq(Derived.partialSlot(raidFirst, 1, 2), nil, "no earned slot -> gated (first slot unknowable)")
+  eq(Derived.partialSlot(raidFirst, 1), 1, "no line -> no gate (back-compat)")
+
+  -- partials threads the line, dropping only gated tracks
+  local period = F.period(
+    raidVet,                                      -- earned Veteran -> gated at champion
+    T(ti(1,3,272,4), ti(4,3,0,0), ti(8,3,0,0)),   -- dungeon slot1 Myth earned, slot2 3/4 -> nudge
+    T(ti(2,0), ti(4,0), ti(8,0)))
+  local parts = Derived.partials(period, 1, 2)
+  eq(#parts, 1, "only the line-worthy track nudges")
+  eq(parts[1].track, "dungeon", "dungeon (Myth) survives the gate")
+
+  -- Attention end-to-end (champion line; char tracked via bestTier 4)
+  local settings = { thresholdHours = 48, seriousness = "champion",
+                     triggers = { banked = true, untouched = true, incomplete = true } }
+  local inWindow = 10 * 3600
+  local function attn(p)
+    return Attention.build({ ["G-X"] = F.char({ name="G", realm="X", bestTier=4, period=p }) },
+      settings, inWindow)
+  end
+  local function rp(raid) return F.period(raid, T(ti(1,0),ti(4,0),ti(8,0)), T(ti(2,0),ti(4,0),ti(8,0))) end
+  eq(#attn(rp(raidFirst)), 0, "first-slot raid (nothing earned) is not nudged")
+  eq(#attn(rp(raidVet)), 0, "earned-Veteran raid below line is not nudged")
+  local l = attn(rp(raidHero))
+  eq(#l, 1, "earned-Hero raid at/above line nudges")
+  eq(l[1].reasons[1], "incomplete", "...as incomplete")
+end
+
 -- ===== Inferred ("likely banked") loot for stale alts =====
 do
   local Derived = ns.Derived

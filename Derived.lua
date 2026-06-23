@@ -48,7 +48,12 @@ end
 -- higher slot), so a world slot reading 2/4 returns 2. Whether a slot whose count
 -- equals a lower slot's threshold nudges is decided purely by maxGap (e.g. 2/4 is in
 -- reach at gap 2; dungeon 1/4 is 3 away, so it stays quiet).
-function Derived.partialSlot(track, maxGap)
+function Derived.partialSlot(track, maxGap, line)
+  -- Gate (mirrors the seriousness gate): only nudge a track once it has revealed a
+  -- tier at/above the line by EARNING a slot. The reward of an unearned slot is
+  -- unknowable until earned, so a track with nothing earned (its first slot) never
+  -- nudges. nil `line` = no gate (back-compat).
+  if Derived.trackEarnedTier(track) < (line or 0) then return nil end
   for _, tier in ipairs(track) do
     if tier.progress < tier.threshold then
       local remaining = tier.threshold - tier.progress
@@ -59,16 +64,28 @@ function Derived.partialSlot(track, maxGap)
   return nil
 end
 
+-- Max earned reward tier within a single track (0 if nothing earned). Reveals the
+-- difficulty the character is running in that track this week.
+function Derived.trackEarnedTier(track)
+  local best = 0
+  for _, tier in ipairs(track) do
+    if tier.progress >= tier.threshold and (tier.rewardTier or 0) > best then
+      best = tier.rewardTier
+    end
+  end
+  return best
+end
+
 local PARTIAL_ORDER = { "raid", "dungeon", "world" }
 
 -- Actionable partial slots across a period's tracks, in display order:
 -- { { track = "raid", remaining = 1 }, ... }. Empty when nothing is close.
-function Derived.partials(period, maxGap)
+function Derived.partials(period, maxGap, line)
   local out = {}
   for _, tk in ipairs(PARTIAL_ORDER) do
     local track = period.tracks[tk]
     if track then
-      local remaining = Derived.partialSlot(track, maxGap)
+      local remaining = Derived.partialSlot(track, maxGap, line)
       if remaining then out[#out + 1] = { track = tk, remaining = remaining } end
     end
   end
