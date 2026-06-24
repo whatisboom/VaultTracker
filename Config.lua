@@ -61,7 +61,13 @@ local function options()
                    hero = L.TIER_HERO, myth = L.TIER_MYTH },
         sorting = { "veteran", "champion", "hero", "myth" },
         get = function() return s.seriousness end,
-        set = function(_, v) s.seriousness = v; ns.Broker:Update() end,
+        set = function(_, v)
+          s.seriousness = v
+          ns.Broker:Update()
+          -- Eligibility is sticky, so changing the threshold doesn't auto re-filter;
+          -- ask whether to re-check existing characters or keep the current set.
+          if next(ns.db.global.characters) then StaticPopup_Show("VAULTTRACKER_RESET_ELIGIBLE") end
+        end,
       },
       showIgnored = {
         type = "toggle", order = 0.6, width = "full", name = L.OPT_SHOWIGNORED,
@@ -194,6 +200,18 @@ function Config:ResetSettings()
   if s.minimap.hide then DBIcon:Hide("VaultTracker") else DBIcon:Show("VaultTracker") end
 end
 
+-- Re-evaluate every cached character's sticky eligibility against the current
+-- threshold (the "Reset" choice when the account threshold changes).
+function Config:RecomputeAllEligible()
+  local seriousness = ns.db.global.settings.seriousness
+  for _, c in pairs(ns.db.global.characters) do
+    c.eligible = ns.Derived.qualifies(c.bestTier or 0,
+      ns.Derived.effectiveLine(c.trackTier, seriousness))
+  end
+  ns.Broker:Update()
+  if ns.Roster and ns.Roster.frame and ns.Roster.frame:IsShown() then ns.Roster:Refresh() end
+end
+
 function Config:Setup(addon)
   local AC = LibStub("AceConfig-3.0")
   AC:RegisterOptionsTable("VaultTracker", options)
@@ -203,6 +221,16 @@ function Config:Setup(addon)
   local _, categoryID = dialog:AddToBlizOptions("VaultTracker", "Vault Tracker")
   self.blizCategory = categoryID
   addon:RegisterChatCommand("vt", function() Config:Open() end)
+
+  -- "Reset" re-checks eligibility against the new threshold; "Keep" leaves the
+  -- current tracked set (the new threshold then only affects future qualification).
+  StaticPopupDialogs["VAULTTRACKER_RESET_ELIGIBLE"] = {
+    text = ns.L.CONFIRM_RESET_ELIGIBLE,
+    button1 = ns.L.CONFIRM_RESET_YES,
+    button2 = ns.L.CONFIRM_RESET_NO,
+    OnAccept = function() ns.Config:RecomputeAllEligible() end,
+    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+  }
 end
 
 function Config:Open()

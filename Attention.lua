@@ -30,17 +30,20 @@ function Attention.build(characters, settings, secondsToReset, now)
   end
 
   for key, char in pairs(characters) do
-    -- All attention (banked included) requires the character be tracked: at/above
-    -- the seriousness line and not "off". Ignored characters produce nothing.
-    if Derived.effectiveTracked(char, settings.seriousness) then
+    -- "off" silences a character entirely. Otherwise confirmed banked loot surfaces
+    -- regardless of eligibility (real, claimable loot you can lose); the inferred and
+    -- soft reasons (likely-banked / untouched / incomplete) require the character be
+    -- tracked (eligible).
+    if char.trackTier ~= "off" then
+      local tracked = Derived.effectiveTracked(char)
       if settings.triggers.banked then
         if char.hasPendingLoot then
           add(key, char, "banked")
-        elseif realWeekId and Derived.likelyBanked(char, realWeekId) then
+        elseif tracked and realWeekId and Derived.likelyBanked(char, realWeekId) then
           add(key, char, "maybebanked")
         end
       end
-      if inWindow then
+      if tracked and inWindow then
         local period = Derived.currentPeriod(char)
         if period then
           if settings.triggers.untouched and Derived.isUntouched(period) then

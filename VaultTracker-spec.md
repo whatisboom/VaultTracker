@@ -103,13 +103,17 @@ Rules:
 - On reset, the period that was current becomes a banked period (it stays in
   `periods` under its own `weekId`; a new current-period entry is written under
   the new `currentWeekId`).
-- **Deletion rule:** when a scan returns `HasAvailableRewards() == false`, delete
-  every period in `periods` older than `currentWeekId`. No pending loot means
-  nothing is banked — clear them regardless of how they were claimed.
+- **Retention rule (`Derived.prunePeriods`):** keep the current period plus the
+  single most-recent prior (banked) snapshot; drop anything older. This is NOT gated
+  on `HasAvailableRewards()` — the first scan after a reset can briefly read it false
+  before reward data loads, which would destroy last week's banked detail. The banked
+  display is gated on `hasPendingLoot`, so a retained-but-claimed period never shows
+  (it just ages out at the next reset). (Earlier versions deleted all older periods
+  whenever a scan saw no pending loot, which lost banked detail on that transient
+  false reading.)
 - A banked period only has detail for weeks the character was actually scanned
   during. Gaps (didn't log in) leave no snapshot; you'll know loot is banked via
   the flag but have no slot detail for unobserved weeks.
-- Pruning beyond the deletion rule (e.g. season-end expiry) is an open question.
 
 ## Derived values (computed from the raw data, never stored)
 

@@ -7,6 +7,13 @@ local function classColor(class)
   return c and c.colorStr or "ffffffff"
 end
 
+-- A character is "active" in the roster if it's tracked, or has confirmed banked loot
+-- (which surfaces regardless of eligibility unless it's "off"). Inactive rows dim.
+local function isActive(char)
+  return ns.Derived.effectiveTracked(char)
+    or (char.hasPendingLoot and char.trackTier ~= "off")
+end
+
 -- One slot's text: earned + known ilvl -> green ilvl; earned + unresolved -> ready-check;
 -- unearned -> muted progress fraction.
 local READY_CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:13:13|t"
@@ -100,7 +107,7 @@ local function setRowIcon(tex, char)
   else
     tex:SetTexture(134400); tex:SetTexCoord(0, 1, 0, 1)  -- INV_Misc_QuestionMark
   end
-  tex:SetDesaturated(not ns.Derived.effectiveTracked(char, ns.db.global.settings.seriousness))
+  tex:SetDesaturated(not isActive(char))
   tex:Show()
 end
 
@@ -163,11 +170,15 @@ end
 -- "likely" (inferred from a stale alt), or nil. Returns the ilvl range and the
 -- period to detail in the hover.
 local function bankedCell(char, realWeekId)
-  local lo, hi, n = ns.Derived.bankedRange(char)
-  if n > 0 then return "confirmed", lo, hi, n, ns.Derived.bankedPeriod(char) end
+  -- Confirmed = actual unclaimed loot (hasPendingLoot), shown even with no cached
+  -- range detail (n may be 0). Likely = inferred from a stale alt.
+  if char.hasPendingLoot then
+    local lo, hi, n = ns.Derived.bankedRange(char)
+    return "confirmed", lo, hi, n, ns.Derived.bankedPeriod(char)
+  end
   if realWeekId and ns.Derived.likelyBanked(char, realWeekId) then
     local p = ns.Derived.currentPeriod(char)
-    lo, hi, n = ns.Derived.periodRange(p)
+    local lo, hi, n = ns.Derived.periodRange(p)
     return "likely", lo, hi, n, p
   end
   return nil
@@ -192,10 +203,9 @@ local function sortedKeys(attn)
     return 1
   end
   local show = ns.db.global.settings.showIgnored
-  local default = ns.db.global.settings.seriousness
   local keys = {}
   for key, char in pairs(chars) do
-    if show or ns.Derived.effectiveTracked(char, default) then keys[#keys + 1] = key end
+    if show or isActive(char) then keys[#keys + 1] = key end
   end
   table.sort(keys, function(a, b)
     local ca, cb = chars[a], chars[b]
@@ -400,7 +410,7 @@ function Roster:Refresh()
 
   for i, key in ipairs(keys) do
     local char = chars[key]
-    local dim = not ns.Derived.effectiveTracked(char, ns.db.global.settings.seriousness)
+    local dim = not isActive(char)
     local row = acquireRow(f, i)
     positionRow(row, geo)
 
@@ -414,7 +424,7 @@ function Roster:Refresh()
       local core = ns.Format.bankedColumn(blo, bhi, bn)
       local txt, color, title, note
       if kind == "confirmed" then
-        txt, color, title = core, dim and "6a6453" or "f2c24a", ns.L.ROSTER_BANKED_TITLE
+        txt, color, title = core or ns.L.ROSTER_BANKED_YES, dim and "6a6453" or "f2c24a", ns.L.ROSTER_BANKED_TITLE
       else  -- likely (inferred): muted amber, "?" prefix, "log in to confirm" note
         txt = ns.L.ROSTER_MAYBE_PREFIX .. (core or "")
         color, title, note = dim and "6a6453" or "b9952f", ns.L.ROSTER_MAYBE_TITLE, ns.L.ROSTER_MAYBE_NOTE
@@ -456,6 +466,10 @@ function Roster:Refresh()
         local function opt(label, value)
           root:CreateRadio(label, function() return char.trackTier == value end, function()
             char.trackTier = value
+            -- A per-character override re-evaluates that character's eligibility now
+            -- (non-sticky): tracked iff its earned tier meets the new line.
+            char.eligible = ns.Derived.qualifies(char.bestTier or 0,
+              ns.Derived.effectiveLine(value, ns.db.global.settings.seriousness))
             ns.Broker:Update()
             ns.Roster:Refresh()
           end)

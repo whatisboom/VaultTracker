@@ -19,6 +19,16 @@ function VaultTracker:OnInitialize()
     end
     self.db.global.migratedSeriousnessV2 = true
   end
+  -- Migration v3: eligibility becomes a stored sticky flag. Grandfather each cached
+  -- character by computing it once from its current bestTier vs its effective line, so
+  -- currently-tracked characters stay tracked (and self-correct on the next scan).
+  if not self.db.global.migratedSeriousnessV3 then
+    local def = self.db.global.settings.seriousness or "champion"
+    for _, c in pairs(self.db.global.characters) do
+      c.eligible = ns.Derived.qualifies(c.bestTier or 0, ns.Derived.effectiveLine(c.trackTier, def))
+    end
+    self.db.global.migratedSeriousnessV3 = true
+  end
   ns.Config:Setup(self)
   ns.Broker:Setup(self)
 end
