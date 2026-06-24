@@ -145,6 +145,7 @@ local function fillSlotTooltip(tt, tk, tier, idx)
       tt:AddLine(ns.L.ROSTER_THISWEEK .. raidText(tier), 0.7, 0.7, 0.7)
     end
   end
+  tt:AddLine(ns.L.ROSTER_RIGHTCLICK, 0.4, 0.4, 0.4)
 end
 
 -- Tooltip for the Banked column: a title, an optional note (the inferred case),
@@ -152,25 +153,27 @@ end
 local function fillBankedTooltip(tt, period, title, note)
   tt:AddLine(title, 1, 0.82, 0)
   if note then tt:AddLine(note, 0.85, 0.65, 0.2) end
-  if not period then return end
-  for _, tk in ipairs(TRACKS) do
-    local track = period.tracks[tk]
-    if track then
-      for idx, tier in ipairs(track) do
-        if tier.progress >= tier.threshold and (tier.rewardIlvl or 0) > 0 then
-          tt:AddDoubleLine((ns.L.ROSTER_SLOT):format(TRACK_LABEL[tk], idx),
-            (ns.L.ROSTER_REWARD):format(tier.rewardIlvl), 1, 1, 1, 0.4, 0.85, 0.4)
+  if period then
+    for _, tk in ipairs(TRACKS) do
+      local track = period.tracks[tk]
+      if track then
+        for idx, tier in ipairs(track) do
+          if tier.progress >= tier.threshold and (tier.rewardIlvl or 0) > 0 then
+            tt:AddDoubleLine((ns.L.ROSTER_SLOT):format(TRACK_LABEL[tk], idx),
+              (ns.L.ROSTER_REWARD):format(tier.rewardIlvl), 1, 1, 1, 0.4, 0.85, 0.4)
+          end
         end
       end
     end
   end
+  tt:AddLine(ns.L.ROSTER_RIGHTCLICK, 0.4, 0.4, 0.4)
 end
 
 -- The Banked-column state for one character: "confirmed" (real pending loot),
 -- "likely" (inferred from a stale alt), or nil. Returns the ilvl range and the
 -- period to detail in the hover.
 local function bankedCell(char, realWeekId)
-  -- "off" silences everywhere, including the Banked column (even when Show ignored
+  -- "off" silences everywhere, including the Banked column (even when Show all
   -- reveals the dimmed row).
   if char.trackTier == "off" then return nil end
   -- Confirmed = actual unclaimed loot (hasPendingLoot), shown even with no cached
@@ -282,6 +285,20 @@ function Roster:CreateFrame()
     f.seps[i] = sep
   end
 
+  -- "Show all" toggle at the bottom: reveals hidden / not-yet-qualifying rows (greyed).
+  -- Mirrors the same setting in the options panel; state re-synced in Refresh.
+  local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+  cb:SetSize(20, 20)
+  cb:SetPoint("BOTTOMLEFT", 12, 8)
+  cb.label = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  cb.label:SetPoint("LEFT", cb, "RIGHT", 1, 0)
+  cb.label:SetText(ns.L.OPT_SHOWIGNORED)
+  cb:SetScript("OnClick", function(self)
+    ns.db.global.settings.showIgnored = self:GetChecked() and true or false
+    ns.Roster:Refresh()
+  end)
+  f.showAllCheck = cb
+
   f:SetScript("OnUpdate", function(self, elapsed)
     self._t = (self._t or 5) + elapsed
     if self._t > 20 then self._t = 0; self.countdown:SetText(resetText()) end
@@ -320,6 +337,7 @@ local function acquireRow(f, i)
   row.nameFrame:SetSize(NAME_W, ROW_H)
   row.nameFrame:SetPoint("LEFT", COLS_X.name - ROW_INSET, 0)
   row.nameFrame:EnableMouse(true)
+  row.nameFrame:SetPropagateMouseClicks(true)  -- right-click reaches the row's menu
   row.nameText = row.nameFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.nameText:SetPoint("LEFT")
   row.nameText:SetJustifyH("LEFT")
@@ -332,6 +350,7 @@ local function acquireRow(f, i)
   row.bankedFrame = CreateFrame("Frame", nil, row)
   row.bankedFrame:SetSize(BANKED_W, ROW_H)
   row.bankedFrame:SetPoint("RIGHT", row, "LEFT", BANKED_R - ROW_INSET, 0)
+  row.bankedFrame:SetPropagateMouseClicks(true)  -- right-click reaches the row's menu
   row.bankedText = row.bankedFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.bankedText:SetPoint("RIGHT")
   row.bankedText:SetJustifyH("RIGHT")
@@ -344,6 +363,7 @@ local function acquireRow(f, i)
       local sf = CreateFrame("Frame", nil, row)
       sf:SetSize(SLOT_W, ROW_H)
       sf:EnableMouse(true)
+      sf:SetPropagateMouseClicks(true)  -- right-click reaches the row's menu
       sf.text = sf:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
       sf.text:SetPoint("RIGHT", -SLOT_PAD, 0)
       sf.text:SetJustifyH("RIGHT")
@@ -376,7 +396,7 @@ local function applyChrome(f, geo)
     local sep = f.seps[i]
     sep:ClearAllPoints()
     sep:SetPoint("TOP", f, "TOPLEFT", x, HEAD_Y + 6)
-    sep:SetPoint("BOTTOM", f, "BOTTOMLEFT", x, 12)
+    sep:SetPoint("BOTTOM", f, "BOTTOMLEFT", x, 32)  -- stop above the "Show all" checkbox
   end
 end
 
@@ -400,6 +420,7 @@ function Roster:Refresh()
   local keys = sortedKeys(attn)
   local currentKey = (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
   f.countdown:SetText(resetText())
+  f.showAllCheck:SetChecked(ns.db.global.settings.showIgnored and true or false)
 
   -- The Banked column appears only when some shown character has banked loot
   -- (confirmed) or is inferred to (a stale alt with unlocked slots last week).
@@ -456,16 +477,24 @@ function Roster:Refresh()
       if char.spec then GameTooltip:AddLine(char.spec, 0.8, 0.8, 0.8) end
       GameTooltip:AddLine((ns.L.ROSTER_EQUIPPED):format(char.ilvl or 0), 1, 0.82, 0)
       GameTooltip:AddLine(ns.L.ROSTER_SCANNED .. ago(char.lastScan), 0.6, 0.6, 0.6)
-      if dim then GameTooltip:AddLine(ns.L.ROSTER_IGNORED, 0.6, 0.5, 0.4) end
+      -- Distinguish "you hid it" from "it just hasn't qualified yet".
+      if char.trackTier == "off" then
+        GameTooltip:AddLine(ns.L.ROSTER_HIDDEN, 0.6, 0.5, 0.4)
+      elseif not ns.Derived.effectiveTracked(char) then
+        GameTooltip:AddLine(ns.L.ROSTER_NOREWARD, 0.6, 0.5, 0.4)
+      end
+      GameTooltip:AddLine(ns.L.ROSTER_RIGHTCLICK, 0.4, 0.4, 0.4)
       GameTooltip:Show()
     end)
     row.nameFrame:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
 
-    -- Right-click a row to set this character's tier line (Auto / tiers / Off),
-    -- written to chars[key].trackTier. Refresh re-applies the tracked gate.
-    row.nameFrame:SetScript("OnMouseUp", function(_, button)
+    -- Right-click anywhere on the row to set this character's tier line (Auto / tiers
+    -- / Off), written to chars[key].trackTier. Refresh re-applies the tracked gate.
+    -- Child frames (name/banked/slots) propagate their clicks down to the row (set in
+    -- acquireRow), so the whole row is the target, not just the name.
+    row:SetScript("OnMouseUp", function(_, button)
       if button ~= "RightButton" then return end
-      MenuUtil.CreateContextMenu(row.nameFrame, function(_, root)
+      MenuUtil.CreateContextMenu(row, function(_, root)
         root:CreateTitle(ns.L.ROSTER_TRACKTIER)
         local function opt(label, value)
           root:CreateRadio(label, function() return char.trackTier == value end, function()
@@ -529,7 +558,7 @@ function Roster:Refresh()
   end
   for i = #keys + 1, #f.rows do f.rows[i]:Hide() end
 
-  f:SetHeight(-ROW0_Y + math.max(#keys, 1) * ROW_H + 14)
+  f:SetHeight(-ROW0_Y + math.max(#keys, 1) * ROW_H + 34)  -- bottom room for the checkbox
 end
 
 function Roster:Toggle()
