@@ -8,7 +8,7 @@ Config.defaults = {
     settings = {
       thresholdHours = 48,
       seriousness = "champion",  -- account-default tier line: veteran/champion/hero/myth
-      showIgnored = false,       -- roster: reveal untracked/ignored characters (greyed)
+      showIgnored = false,       -- roster: reveal hidden / not-yet-qualifying characters (greyed)
       triggers = { banked = true, untouched = true, incomplete = true },
       nudgeGap = 1,   -- "incomplete" nudges when within this many activities of a slot
       minimap = { hide = false },
