@@ -121,13 +121,20 @@ function Derived.effectiveLine(trackTier, accountDefault)
   return Derived.TIER[name] or Derived.TIER.champion
 end
 
--- The display/attention gate: is this character currently tracked? Reads the
--- season high-water bestTier live against the effective line, so raising a line
--- drops the character immediately. "off" silences everywhere.
-function Derived.effectiveTracked(entry, accountDefault)
-  if entry.trackTier == "off" then return false end
-  local line = Derived.effectiveLine(entry.trackTier, accountDefault)
-  return Derived.qualifies(entry.bestTier or 0, line)
+-- The display/attention gate: is this character currently tracked? Reads the stored
+-- sticky `eligible` flag (set by Scanner once the character earned a reward at/above
+-- its line; reset on season rollover; presence in the DB is the source of truth).
+-- "off" silences everywhere regardless of the flag.
+function Derived.effectiveTracked(entry)
+  return entry.trackTier ~= "off" and entry.eligible == true
+end
+
+-- Sticky eligibility: once true it stays true; otherwise becomes true the moment
+-- bestTier meets the line. Scanner folds this in on each scan. Explicit changes
+-- (account threshold dialog, per-character override) recompute non-stickily via
+-- qualifies(bestTier, effectiveLine(...)).
+function Derived.observeEligible(prev, bestTier, line)
+  return prev == true or Derived.qualifies(bestTier or 0, line)
 end
 
 function Derived.isMaxed(period)
@@ -150,6 +157,21 @@ end
 
 function Derived.currentPeriod(char)
   return char.periods and char.periods[char.currentWeekId] or nil
+end
+
+-- Retain the current period and the single most-recent prior (banked) snapshot; drop
+-- anything older. Mutates `periods` in place. Pruning is NOT tied to hasPendingLoot:
+-- the first scan after a reset can briefly read it false before reward data loads,
+-- which would destroy last week's banked detail. The banked display is gated on
+-- hasPendingLoot, so a retained-but-claimed period never shows.
+function Derived.prunePeriods(periods, currentWeekId)
+  local prior = nil
+  for wk in pairs(periods) do
+    if wk < currentWeekId and (not prior or wk > prior) then prior = wk end
+  end
+  for wk in pairs(periods) do
+    if wk ~= currentWeekId and wk ~= prior then periods[wk] = nil end
+  end
 end
 
 -- A quantized block meter for an unearned slot's progress toward its threshold.

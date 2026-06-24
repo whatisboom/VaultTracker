@@ -49,9 +49,13 @@ function F.nudgePeriod()
     track(tier(2,0), tier(4,0), tier(8,0)))
 end
 
--- Build a character entry around a current period.
+-- Build a character entry around a current period. `eligible` defaults from bestTier
+-- at the champion line (>=2) for convenience, so tracking-oriented tests can keep
+-- passing bestTier; pass eligible explicitly to test the flag directly.
 function F.char(opts)
   local weekId = opts.weekId or 1000
+  local eligible = opts.eligible
+  if eligible == nil then eligible = (opts.bestTier or 0) >= 2 end
   return {
     name = opts.name or "Veyra",
     realm = opts.realm or "Fenris",
@@ -60,6 +64,7 @@ function F.char(opts)
     level = opts.level or 80,
     hasPendingLoot = opts.hasPendingLoot or false,
     bestTier = opts.bestTier or 0,
+    eligible = eligible,
     trackTier = opts.trackTier,
     currentWeekId = weekId,
     periods = { [weekId] = opts.period or F.untouchedPeriod() },

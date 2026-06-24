@@ -75,22 +75,34 @@ do
   eq(Derived.effectiveLine("veteran", "myth"), 1, "effectiveLine: veteran override")
   eq(Derived.effectiveLine("off", "champion"), 2, "effectiveLine: 'off' falls back to default (handled by effectiveTracked)")
 
-  -- effectiveTracked: combines bestTier high-water with the effective line
-  eq(Derived.effectiveTracked({ bestTier = 2, trackTier = nil }, "champion"), true,
-     "tracked: champion best meets champion default")
-  eq(Derived.effectiveTracked({ bestTier = 1, trackTier = nil }, "champion"), false,
-     "tracked: veteran best below champion default")
-  eq(Derived.effectiveTracked({ bestTier = 1, trackTier = "veteran" }, "champion"), true,
-     "tracked: veteran override lets a veteran-best char in")
-  eq(Derived.effectiveTracked({ bestTier = 2, trackTier = "hero" }, "champion"), false,
-     "tracked: raising line to hero drops a champion-best char immediately")
-  eq(Derived.effectiveTracked({ bestTier = 4, trackTier = "off" }, "champion"), false,
-     "tracked: 'off' is never tracked regardless of bestTier")
-  eq(Derived.effectiveTracked({ trackTier = nil }, "champion"), false,
-     "tracked: missing bestTier treated as 0")
+  -- effectiveTracked: reads the stored sticky eligible flag, not live bestTier
+  eq(Derived.effectiveTracked({ eligible = true, trackTier = nil }), true,
+     "tracked: eligible flag set")
+  eq(Derived.effectiveTracked({ eligible = false, trackTier = nil }), false,
+     "tracked: not eligible")
+  eq(Derived.effectiveTracked({ trackTier = nil }), false,
+     "tracked: missing eligible treated as false")
+  eq(Derived.effectiveTracked({ eligible = true, trackTier = "off" }), false,
+     "tracked: 'off' is never tracked regardless of the flag")
+
+  -- observeEligible: sticky once true; becomes true the moment bestTier meets the line
+  eq(Derived.observeEligible(true, 0, 4), true, "observeEligible sticky when prev true")
+  eq(Derived.observeEligible(false, 3, 2), true, "observeEligible true on first qualify (hero >= champion)")
+  eq(Derived.observeEligible(false, 1, 2), false, "observeEligible false below line + prev false")
+  eq(Derived.observeEligible(nil, 0, 2), false, "observeEligible nil prev + nothing earned -> false")
 
   local char = F.char({ weekId = 1000, period = partial })
   eq(Derived.currentPeriod(char), partial, "currentPeriod returns the current weekId period")
+
+  -- prunePeriods: keep current + most-recent prior, drop older (not gated on loot)
+  local ps = { [3000] = maxed, [2000] = partial, [1000] = untouched }
+  Derived.prunePeriods(ps, 3000)
+  eq(ps[3000] ~= nil, true, "prune keeps current period")
+  eq(ps[2000] ~= nil, true, "prune keeps the most-recent prior period")
+  eq(ps[1000], nil, "prune drops older periods")
+  local pcur = { [3000] = maxed }
+  Derived.prunePeriods(pcur, 3000)
+  eq(pcur[3000] ~= nil, true, "prune keeps a lone current period")
 
   -- periodKey: stable under sub-minute clock skew between the two integer clocks
   eq(Derived.periodKey(1000000, 100000), Derived.periodKey(1000001, 99999),
@@ -125,14 +137,20 @@ do
   eq(list[1].severity, "red", "banked is red severity")
   eq(list[1].reasons[1], "banked", "banked reason")
 
-  -- banked loot on an UNtracked char is silent (off, or below the line)
+  -- confirmed banked loot surfaces regardless of eligibility, EXCEPT "off"
   chars = {
     ["Off-X"] = F.char({ name="Off", realm="X", hasPendingLoot=true, trackTier="off",
-                         bestTier=4, period=F.maxedPeriod() }),
-    ["Low-X"] = F.char({ name="Low", realm="X", hasPendingLoot=true, bestTier=0,
+                         eligible=true, period=F.maxedPeriod() }),
+  }
+  eq(#Attention.build(chars, settings, outWindow), 0, "'off' banked is silent")
+  chars = {
+    ["Low-X"] = F.char({ name="Low", realm="X", hasPendingLoot=true, eligible=false,
                          period=F.maxedPeriod() }),
   }
-  eq(#Attention.build(chars, settings, outWindow), 0, "untracked banked is silent")
+  list = Attention.build(chars, settings, outWindow)
+  eq(#list, 1, "below-line banked still surfaces (real loot)")
+  eq(list[1].reasons[1], "banked", "...as banked")
+  eq(list[1].severity, "red", "...red severity")
 
   -- untouched tracked char inside window -> amber
   chars = {

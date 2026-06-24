@@ -108,22 +108,24 @@ function Scanner:Scan()
   entry.periods = entry.periods or {}
   entry.periods[currentWeekId] = period
 
-  -- Season high-water reward tier: best earned tier seen this season, reset when the
-  -- M+ season changes. The tracked gate reads this live (Derived.effectiveTracked),
-  -- so raising a line drops a character immediately.
+  -- Season high-water reward tier: best earned tier seen this season, reset on M+
+  -- season change (eligibility resets with it — re-earn after a season rollover).
   local season = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
   if season and entry.bestTierSeason ~= season then
-    entry.bestTier, entry.bestTierSeason = 0, season
+    entry.bestTier, entry.bestTierSeason, entry.eligible = 0, season, false
   end
   entry.bestTier = math.max(entry.bestTier or 0, Derived.bestEarnedTier(period))
-  entry.eligible, entry.eligibleAt = nil, nil  -- drop old fields
+  -- Sticky eligibility (presence in DB = source of truth): once the character has
+  -- earned a reward at/above its line this season it stays tracked. effectiveTracked
+  -- reads entry.eligible; it never drops live as the line changes.
+  local line = Derived.effectiveLine(entry.trackTier, ns.db.global.settings.seriousness)
+  entry.eligible = Derived.observeEligible(entry.eligible, entry.bestTier, line)
+  entry.eligibleAt = nil  -- drop stale field
 
-  -- Banked-period deletion rule (per spec): no pending loot => clear older periods.
-  if not entry.hasPendingLoot then
-    for wk in pairs(entry.periods) do
-      if wk < currentWeekId then entry.periods[wk] = nil end
-    end
-  end
+  -- Keep the current period + the single most-recent prior (banked) snapshot, drop
+  -- older. Not gated on hasPendingLoot, so a transient post-reset false reading can't
+  -- destroy last week's banked detail before the loot registers as available.
+  Derived.prunePeriods(entry.periods, currentWeekId)
 
   -- Max-level persistence gate: only cache characters at the expansion cap, so
   -- leveling alts never enter the roster/attention. Cap-bump cleanup of characters
