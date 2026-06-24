@@ -17,7 +17,9 @@ function Attention.build(characters, settings, secondsToReset, now)
   local Derived = ns.Derived
   local inWindow = secondsToReset ~= nil
     and secondsToReset <= settings.thresholdHours * 3600
-  local realWeekId = now and Derived.periodKey(now, secondsToReset) or nil
+  -- Only a reset-aligned week key drives the inference; without the reset timer,
+  -- periodKey(now, nil) would be misaligned, so skip the inference entirely.
+  local realWeekId = (now and secondsToReset) and Derived.periodKey(now, secondsToReset) or nil
   local byChar = {}
 
   local function add(key, char, reason)

@@ -170,6 +170,9 @@ end
 -- "likely" (inferred from a stale alt), or nil. Returns the ilvl range and the
 -- period to detail in the hover.
 local function bankedCell(char, realWeekId)
+  -- "off" silences everywhere, including the Banked column (even when Show ignored
+  -- reveals the dimmed row).
+  if char.trackTier == "off" then return nil end
   -- Confirmed = actual unclaimed loot (hasPendingLoot), shown even with no cached
   -- range detail (n may be 0). Likely = inferred from a stale alt.
   if char.hasPendingLoot then
@@ -400,7 +403,8 @@ function Roster:Refresh()
 
   -- The Banked column appears only when some shown character has banked loot
   -- (confirmed) or is inferred to (a stale alt with unlocked slots last week).
-  local realWeekId = ns.Derived.periodKey(time(), C_DateAndTime.GetSecondsUntilWeeklyReset())
+  local secs = C_DateAndTime.GetSecondsUntilWeeklyReset()
+  local realWeekId = secs and ns.Derived.periodKey(time(), secs) or nil
   local showBanked = false
   for _, key in ipairs(keys) do
     if bankedCell(chars[key], realWeekId) then showBanked = true; break end

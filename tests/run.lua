@@ -475,6 +475,7 @@ do
   eq(list[1].severity, "amber", "inferred banked is amber")
   eq(Attention.summary(list).color, "amber", "inferred banked badge is amber")
   eq(#Attention.build(chars, settings, sReset), 0, "no now arg -> inference off")
+  eq(#Attention.build(chars, settings, nil, NOW), 0, "nil reset timer -> inference off (no misaligned weekId)")
   local off = { thresholdHours = 48, seriousness = "champion",
                 triggers = { banked = false, untouched = true, incomplete = true } }
   eq(#Attention.build(chars, off, sReset, NOW), 0, "banked trigger off suppresses inference")
