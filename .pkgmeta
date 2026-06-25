@@ -4,6 +4,13 @@
 
 package-as: VaultTracker
 
+# Use the hand-written CHANGELOG.md (Keep a Changelog: Added/Changed/Fixed) as the
+# release notes. Without this, the packager generates notes from `git log`, which
+# embeds commit author name/email — keep that PII out of the published changelog.
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
 externals:
   # Ace3 family + LibStub + CallbackHandler — all from the one canonical Ace3 repo
   # (maintainer: Nevcairiel / WowAce).
