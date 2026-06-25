@@ -17,7 +17,9 @@ A World of Warcraft **retail** addon: a Great Vault nudge tracker (minimap badge
 - Pure logic (`Derived`, `Attention`, `Format`) is TDD'd — **91 tests**; keep them green.
 
 ## Build & release
-- **Tag-driven.** Pushing a `vX.Y.Z` tag fires a GitHub webhook → CurseForge packages server-side (BigWigs packager reads `.pkgmeta`, substitutes `@project-version@`). Tag name sets the channel (no "alpha"/"beta" ⇒ release). The project builds on **tags only**, so untagged pushes don't publish.
+- **Tag-driven, no repo workflow.** There is **no** `.github/workflows/` — packaging is **CurseForge's own GitHub integration** (server-side BigWigs packager reading `.pkgmeta`). Pushing a `vX.Y.Z` tag is the whole release: it builds and publishes; untagged pushes don't. Tag name sets the channel (no "alpha"/"beta" ⇒ release).
+- **Version comes from the tag.** The `.toc` has `## Version: @project-version@`, substituted by the packager with the tag name — **never bump a version by hand**. (`Interface` in the `.toc` IS bumped manually per patch.)
+- **Changelog convention — match it, don't reinvent.** Write a dated `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md` (Keep a Changelog: Added/Changed/Fixed) in a single `docs: changelog for X.Y.Z` commit **immediately before tagging**, and add its `compare/...` link in the footer. Do **NOT** use a rolling `## [Unreleased]` section or stage changelog notes on feature branches — that is not how this repo works (see the `docs: changelog for 0.2.x` history). The packager bundles `CHANGELOG.md` as the release notes.
 - `.pkgmeta` `ignore` keeps dev files out of the package (`docs`, `tests`, `CLAUDE.md`, `VaultTracker-spec.md`, `deploy.sh`); dotfiles are auto-pruned by the packager.
 - **No API for the CurseForge description/About page** — that's a manual web edit.
 
