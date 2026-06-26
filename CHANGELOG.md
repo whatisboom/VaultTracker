@@ -4,6 +4,20 @@ All notable changes to VaultTracker are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-26
+
+### Added
+- **First-run welcome.** A fresh install prints a one-time chat message explaining that
+  characters are tracked once they earn a Great Vault reward at your threshold, and
+  pointing to the minimap icon. Established accounts are grandfathered past it.
+- **Empty-roster state.** When nothing is tracked yet, the roster window now shows a
+  clear "No characters tracked yet" message in place of an empty grid, with a hint that
+  characters appear once they earn a qualifying reward.
+
+### Changed
+- The minimap tooltip distinguishes a brand-new install ("No characters tracked yet")
+  from an established account that is merely caught up for the week.
+
 ## [0.3.0] - 2026-06-24
 
 ### Added
@@ -98,6 +112,7 @@ actually care about, expressed in the game's own upgrade tiers.
   per-character roster window, and weekly reminders. Fully localized via
   AceLocale-3.0 (enUS base).
 
+[0.3.1]: https://github.com/whatisboom/VaultTracker/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/whatisboom/VaultTracker/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/whatisboom/VaultTracker/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/whatisboom/VaultTracker/compare/v0.2.0...v0.2.1
