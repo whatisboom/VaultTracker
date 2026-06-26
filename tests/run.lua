@@ -85,6 +85,17 @@ do
   eq(Derived.effectiveTracked({ eligible = true, trackTier = "off" }), false,
      "tracked: 'off' is never tracked regardless of the flag")
 
+  -- anyTracked: true iff at least one cached character is effectively tracked
+  eq(Derived.anyTracked({}), false, "anyTracked: empty cache -> false")
+  eq(Derived.anyTracked({ ["A-X"] = { eligible = false, trackTier = nil } }), false,
+     "anyTracked: only an ineligible char -> false")
+  eq(Derived.anyTracked({ ["A-X"] = { eligible = true, trackTier = "off" } }), false,
+     "anyTracked: a lone 'off' char (even eligible) -> false")
+  eq(Derived.anyTracked({
+       ["A-X"] = { eligible = false, trackTier = nil },
+       ["B-X"] = { eligible = true, trackTier = nil },
+     }), true, "anyTracked: at least one tracked char -> true")
+
   -- observeEligible: sticky once true; becomes true the moment bestTier meets the line
   eq(Derived.observeEligible(true, 0, 4), true, "observeEligible sticky when prev true")
   eq(Derived.observeEligible(false, 3, 2), true, "observeEligible true on first qualify (hero >= champion)")

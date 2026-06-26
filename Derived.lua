@@ -129,6 +129,16 @@ function Derived.effectiveTracked(entry)
   return entry.trackTier ~= "off" and entry.eligible == true
 end
 
+-- True iff at least one cached character is effectively tracked. Distinguishes a
+-- fresh install (nothing tracked yet) from an established account that is merely
+-- caught up this week; drives the fresh-install messaging.
+function Derived.anyTracked(chars)
+  for _, entry in pairs(chars) do
+    if Derived.effectiveTracked(entry) then return true end
+  end
+  return false
+end
+
 -- Sticky eligibility: once true it stays true; otherwise becomes true the moment
 -- bestTier meets the line. Scanner folds this in on each scan. Explicit changes
 -- (account threshold dialog, per-character override) recompute non-stickily via

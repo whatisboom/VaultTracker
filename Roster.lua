@@ -271,6 +271,7 @@ function Roster:CreateFrame()
   rule:SetPoint("TOPLEFT", 14, HEAD_Y - 16)
   rule:SetPoint("TOPRIGHT", -14, HEAD_Y - 16)
   rule:SetHeight(1)
+  f.rule = rule
 
   -- Vertical separators bracketing the three track groups. On their own layer above
   -- the rows so the row stripe/glow doesn't wash them out. Positioned by applyChrome.
@@ -298,6 +299,19 @@ function Roster:CreateFrame()
     ns.Roster:Refresh()
   end)
   f.showAllCheck = cb
+
+  -- Fresh-install / empty-roster message, shown in the row area when no rows render
+  -- (no characters tracked yet, or all hidden by the filter). Hidden otherwise.
+  f.emptyTitle = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  f.emptyTitle:SetPoint("TOP", 0, ROW0_Y - 16)
+  f.emptyTitle:SetText(ns.L.ROSTER_EMPTY_TITLE)
+  f.emptyTitle:Hide()
+  f.emptyBody = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  f.emptyBody:SetPoint("TOP", f.emptyTitle, "BOTTOM", 0, -8)
+  f.emptyBody:SetWidth(geometry(false).frameW - 48)
+  f.emptyBody:SetJustifyH("CENTER")
+  f.emptyBody:SetText(ns.L.ROSTER_EMPTY_BODY)
+  f.emptyBody:Hide()
 
   f:SetScript("OnUpdate", function(self, elapsed)
     self._t = (self._t or 5) + elapsed
@@ -377,12 +391,12 @@ end
 
 -- (Re)position the frame chrome for a layout: frame width, headers (the Banked
 -- header is shown only when geo.showBanked), and the three group separators.
-local function applyChrome(f, geo)
+local function applyChrome(f, geo, empty)
   f:SetWidth(geo.frameW)
   local h = f.headerFS
-  h.name:ClearAllPoints();  h.name:SetPoint("TOPLEFT", COLS_X.name, HEAD_Y)
-  h.ilvl:ClearAllPoints();  h.ilvl:SetPoint("TOPRIGHT", f, "TOPLEFT", ILVL_R, HEAD_Y); h.ilvl:SetJustifyH("RIGHT")
-  if geo.showBanked then
+  h.name:ClearAllPoints();  h.name:SetPoint("TOPLEFT", COLS_X.name, HEAD_Y); h.name:SetShown(not empty)
+  h.ilvl:ClearAllPoints();  h.ilvl:SetPoint("TOPRIGHT", f, "TOPLEFT", ILVL_R, HEAD_Y); h.ilvl:SetJustifyH("RIGHT"); h.ilvl:SetShown(not empty)
+  if geo.showBanked and not empty then
     h.banked:ClearAllPoints()
     h.banked:SetPoint("TOPRIGHT", f, "TOPLEFT", BANKED_R, HEAD_Y); h.banked:SetJustifyH("RIGHT")
     h.banked:Show()
@@ -390,13 +404,17 @@ local function applyChrome(f, geo)
     h.banked:Hide()
   end
   for _, tk in ipairs(TRACKS) do
-    h[tk]:ClearAllPoints(); h[tk]:SetPoint("TOP", f, "TOPLEFT", geo[tk] + SLOT_W * 1.5, HEAD_Y)
+    h[tk]:ClearAllPoints(); h[tk]:SetPoint("TOP", f, "TOPLEFT", geo[tk] + SLOT_W * 1.5, HEAD_Y); h[tk]:SetShown(not empty)
   end
+  -- The header rule and group separators are grid chrome; with no rows there is
+  -- nothing to delimit, so hide them and let the empty message stand alone.
+  f.rule:SetShown(not empty)
   for i, x in ipairs(geo.seps) do
     local sep = f.seps[i]
     sep:ClearAllPoints()
     sep:SetPoint("TOP", f, "TOPLEFT", x, HEAD_Y + 6)
     sep:SetPoint("BOTTOM", f, "BOTTOMLEFT", x, 32)  -- stop above the "Show all" checkbox
+    sep:SetShown(not empty)
   end
 end
 
@@ -431,7 +449,7 @@ function Roster:Refresh()
     if bankedCell(chars[key], realWeekId) then showBanked = true; break end
   end
   local geo = geometry(showBanked)
-  applyChrome(f, geo)
+  applyChrome(f, geo, #keys == 0)
 
   for i, key in ipairs(keys) do
     local char = chars[key]
@@ -558,7 +576,13 @@ function Roster:Refresh()
   end
   for i = #keys + 1, #f.rows do f.rows[i]:Hide() end
 
-  f:SetHeight(-ROW0_Y + math.max(#keys, 1) * ROW_H + 34)  -- bottom room for the checkbox
+  local empty = #keys == 0
+  f.emptyTitle:SetShown(empty)
+  f.emptyBody:SetShown(empty)
+  -- Give the empty message room to breathe (title + wrapped body); otherwise size
+  -- to the rows, with a one-row floor for the checkbox.
+  local bodyRows = empty and 4 or #keys
+  f:SetHeight(-ROW0_Y + math.max(bodyRows, 1) * ROW_H + 34)  -- bottom room for the checkbox
 end
 
 function Roster:Toggle()

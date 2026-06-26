@@ -95,7 +95,10 @@ function Broker:OnTooltip(tt)
   local chars = ns.db.global.characters
   local list = self:Current()
   if #list == 0 then
-    tt:AddLine(ns.L.BROKER_NOTHING, 0.6, 0.6, 0.6)
+    -- Fresh install (nothing tracked yet) reads differently from an established
+    -- account that is merely caught up this week.
+    local msg = ns.Derived.anyTracked(chars) and ns.L.BROKER_NOTHING or ns.L.BROKER_FRESH
+    tt:AddLine(msg, 0.6, 0.6, 0.6)
   else
     for _, e in ipairs(list) do
       -- "!" confirmed banked, "?" likely banked (inferred), "-" time-pressure

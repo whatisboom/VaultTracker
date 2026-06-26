@@ -29,6 +29,11 @@ function VaultTracker:OnInitialize()
     end
     self.db.global.migratedSeriousnessV3 = true
   end
+  -- Grandfather existing accounts past the one-time welcome; only a brand-new
+  -- (empty) install, which has no cached characters yet at init, sees it.
+  if self.db.global.welcomeShown == nil and next(self.db.global.characters) ~= nil then
+    self.db.global.welcomeShown = true
+  end
   ns.Config:Setup(self)
   ns.Broker:Setup(self)
 end
@@ -64,6 +69,12 @@ end
 function VaultTracker:SessionAnnounce()
   local s = ns.db.global.settings
   local chars = ns.db.global.characters
+  -- One-time fresh-install welcome, independent of the chat-summary setting.
+  if not ns.db.global.welcomeShown then
+    self:Print(ns.L.WELCOME_1)
+    print(ns.L.WELCOME_2)
+    ns.db.global.welcomeShown = true
+  end
   if s.chatSummary then
     local list = ns.Attention.build(chars, s, C_DateAndTime.GetSecondsUntilWeeklyReset(), time())
     local lines = ns.Format.summary(list, chars)
