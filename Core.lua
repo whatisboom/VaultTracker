@@ -5,6 +5,8 @@ local VaultTracker = LibStub("AceAddon-3.0"):NewAddon("VaultTracker",
 ns.addon = VaultTracker
 
 function VaultTracker:OnInitialize()
+  BoomForge:RegisterPlugin(self, { name = "VaultTracker", version = C_AddOns.GetAddOnMetadata(ADDON, "Version") })
+
   self.db = LibStub("AceDB-3.0"):New("VaultTrackerDB", ns.Config.defaults, true)
   ns.db = self.db
   -- One-time migration to seriousness v2: grandfather previously-eligible characters

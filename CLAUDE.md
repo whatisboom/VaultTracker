@@ -13,7 +13,7 @@ A World of Warcraft **retail** addon: a Great Vault nudge tracker (minimap badge
 ## Project state
 - **Released.** On `main`, pushed to `github.com/whatisboom/VaultTracker`, published to CurseForge (project `1572774`). Current tag **v0.2.2**.
 - Interface version **120007** (WoW 12.0.7).
-- **Libs vendored on disk** under `Libs/` but gitignored (only `Libs/embeds.xml` is tracked); fetched and embedded at build time via `.pkgmeta` `externals` — never committed, by design.
+- **No vendored libs.** VaultTracker requires the shared [BoomForge](../BoomForge) framework (`## RequiredDeps: BoomForge` in the `.toc`) for its whole Ace3/LibDataBroker/LibDBIcon/LibSharedMedia stack — same pattern as DEFunnel and PatronOrderScout. `Core.lua`'s `OnInitialize` calls `BoomForge:RegisterPlugin(self, { name = "VaultTracker", version = ... })`. BoomForge must be installed and enabled alongside VaultTracker in the live AddOns folder (deployed separately, not by this repo's `deploy.sh`) or the addon won't load.
 - Pure logic (`Derived`, `Attention`, `Format`) is TDD'd — **91 tests**; keep them green.
 
 ## Build & release

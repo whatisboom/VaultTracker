@@ -1,6 +1,6 @@
 # CurseForge / BigWigs packager manifest.
-# Libraries are fetched at build time from their canonical sources (see below),
-# so they are NOT committed to this repo. URLs verified to resolve 2026-06-12.
+# No vendored libraries -- all Ace3/LibDataBroker/LibDBIcon/LibSharedMedia libs
+# come from the required BoomForge dependency, so there are no externals to fetch.
 
 package-as: VaultTracker
 
@@ -10,29 +10,6 @@ package-as: VaultTracker
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown
-
-externals:
-  # Ace3 family + LibStub + CallbackHandler — all from the one canonical Ace3 repo
-  # (maintainer: Nevcairiel / WowAce).
-  Libs/LibStub: https://repos.wowace.com/wow/ace3/trunk/LibStub
-  Libs/CallbackHandler-1.0: https://repos.wowace.com/wow/ace3/trunk/CallbackHandler-1.0
-  Libs/AceAddon-3.0: https://repos.wowace.com/wow/ace3/trunk/AceAddon-3.0
-  Libs/AceEvent-3.0: https://repos.wowace.com/wow/ace3/trunk/AceEvent-3.0
-  Libs/AceConsole-3.0: https://repos.wowace.com/wow/ace3/trunk/AceConsole-3.0
-  Libs/AceTimer-3.0: https://repos.wowace.com/wow/ace3/trunk/AceTimer-3.0
-  Libs/AceDB-3.0: https://repos.wowace.com/wow/ace3/trunk/AceDB-3.0
-  Libs/AceGUI-3.0: https://repos.wowace.com/wow/ace3/trunk/AceGUI-3.0
-  Libs/AceConfig-3.0: https://repos.wowace.com/wow/ace3/trunk/AceConfig-3.0
-  Libs/AceLocale-3.0: https://repos.wowace.com/wow/ace3/trunk/AceLocale-3.0
-
-  # LibDataBroker-1.1 — tekkub's repo is the canonical home.
-  Libs/LibDataBroker-1.1:
-    url: https://github.com/tekkub/libdatabroker-1-1
-
-  # LibDBIcon-1.0 (orig. Rabbit, maint. funkydude) and LibSharedMedia-3.0 (Elkano)
-  # from their official WowAce projects — not community mirrors.
-  Libs/LibDBIcon-1.0: https://repos.wowace.com/wow/libdbicon-1-0/trunk/LibDBIcon-1.0
-  Libs/LibSharedMedia-3.0: https://repos.wowace.com/wow/libsharedmedia-3-0/trunk/LibSharedMedia-3.0
 
 # Dev-only files that should not ship in the packaged addon.
 # (Dotfiles like .pkgmeta / .gitignore are auto-pruned by the packager.)
