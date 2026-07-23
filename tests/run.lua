@@ -312,9 +312,9 @@ do
 
   -- Format.bankedColumn: roster cell text
   local Format = ns.Format
-  eq(Format.bankedColumn(259, 272, 2), "2: 259–272", "bankedColumn range")
-  eq(Format.bankedColumn(272, 272, 9), "9: 272", "bankedColumn flat")
-  eq(Format.bankedColumn(272, 272, 1), "1: 272", "bankedColumn single")
+  eq(Format.bankedColumn(259, 272, 2), "259–272", "bankedColumn range")
+  eq(Format.bankedColumn(272, 272, 9), "272", "bankedColumn flat")
+  eq(Format.bankedColumn(272, 272, 1), "272", "bankedColumn single")
   eq(Format.bankedColumn(0, 0, 0), nil, "bankedColumn nil when none")
 
   -- tooltipReason: banked range / flat / single / none
@@ -438,7 +438,7 @@ do
   eq(l[1].reasons[1], "incomplete", "...as incomplete")
 end
 
--- ===== Inferred ("likely banked") loot for stale alts =====
+-- ===== Trusted banked loot for stale alts (last scan is treated as fact) =====
 do
   local Derived = ns.Derived
   local Format = ns.Format
@@ -449,47 +449,84 @@ do
   local lo, hi, n = Derived.periodRange(F.partialPeriod())
   eq(lo, 259, "periodRange partial min"); eq(hi, 272, "periodRange partial max"); eq(n, 2, "periodRange partial count")
 
-  -- likelyBanked: exactly one reset stale AND had unlocked slots when last seen
+  -- staleBanked: not scanned since its last known week, and had unlocked slots
+  -- when last seen. Unclaimed rewards don't expire, so this holds regardless of
+  -- how many resets have passed since — claiming requires logging into the
+  -- character itself, so nothing else could have changed it.
   local realWk = 600000
-  eq(Derived.likelyBanked(F.char({ weekId = realWk - WEEK, period = F.partialPeriod() }), realWk), true,
-     "stale by one week with unlocked slots -> likely")
-  eq(Derived.likelyBanked(F.char({ weekId = realWk - WEEK, period = F.untouchedPeriod() }), realWk), false,
-     "stale but nothing unlocked -> not likely")
-  eq(Derived.likelyBanked(F.char({ weekId = realWk, period = F.partialPeriod() }), realWk), false,
-     "scanned this week -> not likely")
-  eq(Derived.likelyBanked(F.char({ weekId = realWk - 2 * WEEK, period = F.partialPeriod() }), realWk), false,
-     "two resets stale -> not likely (loot likely cleared)")
-  eq(Derived.likelyBanked(F.char({ weekId = realWk - WEEK, hasPendingLoot = true, period = F.partialPeriod() }), realWk),
-     false, "confirmed pending loot is owned by the banked path, not inferred")
+  eq(Derived.staleBanked(F.char({ weekId = realWk - WEEK, period = F.partialPeriod() }), realWk), true,
+     "stale by one week with unlocked slots -> banked")
+  eq(Derived.staleBanked(F.char({ weekId = realWk - WEEK, period = F.untouchedPeriod() }), realWk), false,
+     "stale but nothing unlocked -> not banked")
+  eq(Derived.staleBanked(F.char({ weekId = realWk, period = F.partialPeriod() }), realWk), false,
+     "scanned this week -> not stale")
+  eq(Derived.staleBanked(F.char({ weekId = realWk - 2 * WEEK, period = F.partialPeriod() }), realWk), true,
+     "two resets stale -> still banked (rewards don't expire)")
+  eq(Derived.staleBanked(F.char({ weekId = realWk - WEEK, hasPendingLoot = true, period = F.partialPeriod() }), realWk),
+     false, "confirmed pending loot is owned by the live hasPendingLoot read, not the stale path")
 
-  -- tooltipReason for the inferred reason reads the stale current period
+  -- tooltipReason for a stale alt reads its last-known current period, same as a
+  -- live-confirmed one — no separate "unconfirmed" wording.
   local mc = F.char({ weekId = realWk - WEEK, period = F.partialPeriod() })
-  eq(Format.tooltipReason({ reasons = {"maybebanked"} }, mc), "likely banked loot, 2 items 259–272",
-     "tooltipReason maybebanked range")
+  eq(Format.tooltipReason({ reasons = {"banked"} }, mc), "banked loot, 2 items 259–272",
+     "tooltipReason banked range for a stale alt")
 
-  -- marker glyphs: "!" confirmed, "?" inferred, "-" time-pressure
-  eq(Format.marker({ severity = "red", reasons = {"banked"} }), "|cffff5555!|r", "marker confirmed")
-  eq(Format.marker({ severity = "amber", reasons = {"maybebanked"} }), "|cfff2c24a?|r", "marker inferred")
+  -- marker glyphs: "!" banked, "-" time-pressure
+  eq(Format.marker({ severity = "red", reasons = {"banked"} }), "|cffff5555!|r", "marker banked")
   eq(Format.marker({ severity = "amber", reasons = {"incomplete"} }), "|cfff2c24a-|r", "marker time-pressure")
 
-  -- Attention.build wires the inference (folded into the banked trigger), amber
+  -- Attention.build wires the stale-alt inference into the same "banked" reason
+  -- (red), not a separate softer one.
   local settings = { thresholdHours = 48, seriousness = "champion",
                      triggers = { banked = true, untouched = true, incomplete = true } }
-  local NOW, sReset = 2000000, 200 * 3600       -- outside the 48h window -> isolate maybebanked
+  local NOW, sReset = 2000000, 200 * 3600       -- outside the 48h window -> isolate the banked trigger
   local rwk = Derived.periodKey(NOW, sReset)
   local chars = {
     ["S-X"] = F.char({ name = "S", realm = "X", weekId = rwk - WEEK, bestTier = 3, period = F.partialPeriod() }),
   }
   local list = Attention.build(chars, settings, sReset, NOW)
   eq(#list, 1, "stale alt produces one attention entry")
-  eq(list[1].reasons[1], "maybebanked", "inferred reason is maybebanked")
-  eq(list[1].severity, "amber", "inferred banked is amber")
-  eq(Attention.summary(list).color, "amber", "inferred banked badge is amber")
+  eq(list[1].reasons[1], "banked", "stale-banked reason is banked")
+  eq(list[1].severity, "red", "stale-banked is red, same as confirmed")
+  eq(Attention.summary(list).color, "red", "stale-banked badge is red")
   eq(#Attention.build(chars, settings, sReset), 0, "no now arg -> inference off")
   eq(#Attention.build(chars, settings, nil, NOW), 0, "nil reset timer -> inference off (no misaligned weekId)")
   local off = { thresholdHours = 48, seriousness = "champion",
                 triggers = { banked = false, untouched = true, incomplete = true } }
   eq(#Attention.build(chars, off, sReset, NOW), 0, "banked trigger off suppresses inference")
+end
+
+-- ===== Stale-banked loot surfaces even when the character isn't tracked =====
+do
+  local Derived = ns.Derived
+  local Attention = ns.Attention
+  local WEEK = 7 * 24 * 3600
+
+  local settings = { thresholdHours = 48, seriousness = "champion",
+                     triggers = { banked = true, untouched = true, incomplete = true } }
+  local NOW, sReset = 2000000, 200 * 3600
+  local rwk = Derived.periodKey(NOW, sReset)
+
+  -- bestTier = 1 (Veteran) is below the champion line -> not tracked, but the stale
+  -- period still has unlocked slots -> banked must still surface (this was the bug:
+  -- the stale path required `tracked`, while the confirmed hasPendingLoot path did not).
+  local chars = {
+    ["U-X"] = F.char({ name = "U", realm = "X", weekId = rwk - WEEK, bestTier = 1,
+                       period = F.partialPeriod() }),
+  }
+  local list = Attention.build(chars, settings, sReset, NOW)
+  eq(#list, 1, "untracked stale-banked alt still produces an attention entry")
+  eq(list[1].reasons[1], "banked", "untracked stale-banked reason is banked")
+  eq(list[1].severity, "red", "untracked stale-banked is red")
+  eq(list[1].tracked, false, "entry carries tracked=false")
+
+  -- a tracked, confirmed-banked char carries tracked=true on the same field
+  local trackedChars = {
+    ["T-X"] = F.char({ name = "T", realm = "X", hasPendingLoot = true, bestTier = 3,
+                       period = F.maxedPeriod() }),
+  }
+  local trackedList = Attention.build(trackedChars, settings, sReset, NOW)
+  eq(trackedList[1].tracked, true, "tracked confirmed-banked entry carries tracked=true")
 end
 
 -- ===== Stale-character pruning =====

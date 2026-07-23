@@ -22,39 +22,41 @@ function Attention.build(characters, settings, secondsToReset, now)
   local realWeekId = (now and secondsToReset) and Derived.periodKey(now, secondsToReset) or nil
   local byChar = {}
 
-  local function add(key, char, reason)
+  local function add(key, char, reason, tracked)
     local e = byChar[key]
     if not e then
-      e = { key = key, name = char.name, realm = char.realm, class = char.class, reasons = {} }
+      e = { key = key, name = char.name, realm = char.realm, class = char.class,
+            tracked = tracked, reasons = {} }
       byChar[key] = e
     end
     e.reasons[#e.reasons + 1] = reason
   end
 
   for key, char in pairs(characters) do
-    -- "off" silences a character entirely. Otherwise confirmed banked loot surfaces
-    -- regardless of eligibility (real, claimable loot you can lose); the inferred and
-    -- soft reasons (likely-banked / untouched / incomplete) require the character be
-    -- tracked (eligible).
+    -- "off" silences a character entirely. Otherwise banked loot surfaces regardless
+    -- of eligibility (real, claimable loot) whether read live this session or trusted
+    -- from a stale alt's last scan (see Derived.staleBanked); the other soft reasons
+    -- (untouched / incomplete) require the character be tracked (eligible). `tracked`
+    -- rides on every entry so renderers can style identity vs. loot independently.
     if char.trackTier ~= "off" then
       local tracked = Derived.effectiveTracked(char)
       if settings.triggers.banked then
         if char.hasPendingLoot then
-          add(key, char, "banked")
-        elseif tracked and realWeekId and Derived.likelyBanked(char, realWeekId) then
-          add(key, char, "maybebanked")
+          add(key, char, "banked", tracked)
+        elseif realWeekId and Derived.staleBanked(char, realWeekId) then
+          add(key, char, "banked", tracked)
         end
       end
       if tracked and inWindow then
         local period = Derived.currentPeriod(char)
         if period then
           if settings.triggers.untouched and Derived.isUntouched(period) then
-            add(key, char, "untouched")
+            add(key, char, "untouched", tracked)
           elseif settings.triggers.incomplete then
             local line = Derived.effectiveLine(char.trackTier, settings.seriousness)
             local parts = Derived.partials(period, settings.nudgeGap or 1, line)
             if #parts > 0 then
-              add(key, char, "incomplete")
+              add(key, char, "incomplete", tracked)
               byChar[key].partials = parts
             end
           end
