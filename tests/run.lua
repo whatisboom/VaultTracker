@@ -342,9 +342,17 @@ do
   local sc = F.char({ name = "A", realm = "X", weekId = 1000, hasPendingLoot = true,
                       period = F.untouchedPeriod() })
   sc.periods[900] = F.maxedPeriod()  -- a banked prior period
-  local sList = { { key = "A-X", name = "A", realm = "X", severity = "red", reasons = {"banked"} } }
+  local sList = { { key = "A-X", name = "A", realm = "X", severity = "red", reasons = {"banked"}, tracked = true } }
   eq(Format.summary(sList, { ["A-X"] = sc })[1]:find("banked loot") ~= nil, true,
      "summary line mentions banked loot")
+  eq(Format.summary(sList, { ["A-X"] = sc })[1]:find("|cff6a6453", 1, true), nil,
+     "tracked character's summary line has no muted-name color code")
+
+  local sc2 = F.char({ name = "U", realm = "X", weekId = 1000, hasPendingLoot = true,
+                       bestTier = 1, period = F.untouchedPeriod() })
+  local sList2 = { { key = "U-X", name = "U", realm = "X", severity = "red", reasons = {"banked"}, tracked = false } }
+  eq(Format.summary(sList2, { ["U-X"] = sc2 })[1]:find("|cff6a6453U%-X|r", 1, false) ~= nil, true,
+     "untracked character's name-realm is wrapped in the muted color code")
 end
 
 -- ===== Actionable partial-slot nudges =====

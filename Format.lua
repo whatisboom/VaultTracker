@@ -9,8 +9,7 @@ local function has(list, value)
   return false
 end
 
--- "<prefix>, N items lo–hi" (collapsing to one ilvl or just the prefix). Shared by
--- confirmed banked loot and the inferred ("likely banked") variant via the prefix.
+-- "<prefix>, N items lo–hi" (collapsing to one ilvl or just the prefix).
 function Format.rangeReason(prefix, min, max, count)
   local L = ns.L
   if count == 0 then return prefix end
@@ -19,30 +18,29 @@ function Format.rangeReason(prefix, min, max, count)
   return (L.REASON_RANGE):format(prefix, count, min, max)
 end
 
--- The list marker glyph for an attention entry: "!" confirmed-urgent (red),
--- "?" inferred/unconfirmed banked loot, "-" time-pressure (amber).
+-- The list marker glyph for an attention entry: "!" banked (red, urgent),
+-- "-" time-pressure (amber).
 function Format.marker(entry)
   if entry.severity == "red" then return "|cffff5555!|r" end
-  if has(entry.reasons, "maybebanked") then return "|cfff2c24a?|r" end
   return "|cfff2c24a-|r"
 end
 
 -- The right-hand reason text for one tooltip line.
 -- banked dominates (urgent, separate axis); otherwise the slot fraction carries
 -- the touched/incomplete state, so no "untouched"/"incomplete" words. `best` is
--- appended only when some reward is actually claimable.
+-- appended only when some reward is actually claimable. bankedRange reads whichever
+-- period actually holds the banked slots (this session's live scan or a stale alt's
+-- last known one), so a stale alt's banked loot reports the same way as a confirmed one.
 function Format.tooltipReason(entry, char)
   local Derived = ns.Derived
   local L = ns.L
   if has(entry.reasons, "banked") then
     local min, max, count = Derived.bankedRange(char)
+    if count == 0 then
+      local period = Derived.currentPeriod(char)
+      if period then min, max, count = Derived.periodRange(period) end
+    end
     return Format.rangeReason(L.REASON_BANKED, min, max, count)
-  end
-  if has(entry.reasons, "maybebanked") then
-    local min, max, count = 0, 0, 0
-    local period = Derived.currentPeriod(char)
-    if period then min, max, count = Derived.periodRange(period) end
-    return Format.rangeReason(L.REASON_MAYBE_BANKED, min, max, count)
   end
   if has(entry.reasons, "incomplete") and entry.partials then
     return Format.nudgeText(entry.partials)
@@ -70,13 +68,15 @@ function Format.nudgeText(partials)
   return table.concat(out, ", ")
 end
 
--- The roster Banked column cell: "N: lo–hi" (or "N: ilvl" when all the same), or
--- nil when there's nothing banked (caller renders the empty dash).
+-- The roster Banked column cell: "ilvl" or "lo–hi" when multiple slots resolved to
+-- different ilvls, or nil when there's nothing banked (caller renders the empty
+-- dash). Slot count isn't shown inline (it's in the hover tooltip) — the cell is
+-- just the ilvl a player would actually care about at a glance.
 function Format.bankedColumn(min, max, count)
   local L = ns.L
   if count == 0 then return nil end
-  if count == 1 or min == max then return (L.ROSTER_BANKED_FLAT):format(count, min) end
-  return (L.ROSTER_BANKED_RANGE):format(count, min, max)
+  if count == 1 or min == max then return (L.ROSTER_BANKED_FLAT):format(min) end
+  return (L.ROSTER_BANKED_RANGE):format(min, max)
 end
 
 -- A "Xd Yh Zm" countdown from a second count, dropping leading zero units (a
@@ -98,7 +98,9 @@ function Format.countdown(secs)
 end
 
 -- The login chat-summary lines: one per character needing attention, or a single
--- "all caught up" line when the attention list is empty.
+-- "all caught up" line when the attention list is empty. A not-tracked character
+-- (surfaced only because of banked loot) gets its name-realm muted, matching the
+-- roster and minimap tooltip.
 function Format.summary(list, chars)
   local L = ns.L
   if #list == 0 then
@@ -106,7 +108,9 @@ function Format.summary(list, chars)
   end
   local out = {}
   for _, e in ipairs(list) do
-    out[#out + 1] = (L.SUMMARY_LINE):format(Format.marker(e), e.name, e.realm,
+    local nameRealm = ("%s-%s"):format(e.name, e.realm)
+    if not e.tracked then nameRealm = ("|cff6a6453%s|r"):format(nameRealm) end
+    out[#out + 1] = (L.SUMMARY_LINE):format(Format.marker(e), nameRealm,
       Format.tooltipReason(e, chars[e.key]))
   end
   return out
