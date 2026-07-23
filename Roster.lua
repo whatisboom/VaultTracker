@@ -7,11 +7,13 @@ local function classColor(class)
   return c and c.colorStr or "ffffffff"
 end
 
--- A character is "active" in the roster if it's tracked, or has confirmed banked loot
--- (which surfaces regardless of eligibility unless it's "off"). Inactive rows dim.
-local function isActive(char)
+-- A character is "active" in the roster if it's tracked, or has banked loot —
+-- confirmed this session or trusted from a stale alt's last scan (surfaces
+-- regardless of eligibility unless it's "off"). Inactive rows dim.
+local function isActive(char, realWeekId)
   return ns.Derived.effectiveTracked(char)
-    or (char.hasPendingLoot and char.trackTier ~= "off")
+    or (char.trackTier ~= "off" and (char.hasPendingLoot
+      or (realWeekId and ns.Derived.staleBanked(char, realWeekId))))
 end
 
 -- One slot's text: earned + known ilvl -> green ilvl; earned + unresolved -> ready-check;
@@ -169,23 +171,27 @@ local function fillBankedTooltip(tt, period, title, note)
   tt:AddLine(ns.L.ROSTER_RIGHTCLICK, 0.4, 0.4, 0.4)
 end
 
--- The Banked-column state for one character: "confirmed" (real pending loot),
--- "likely" (inferred from a stale alt), or nil. Returns the ilvl range and the
--- period to detail in the hover.
+-- The Banked-column state for one character: true if there's a banked reward,
+-- whether read live this session (hasPendingLoot) or trusted from a stale alt's
+-- last scan (Derived.staleBanked — not a guess, see its doc comment). Returns the
+-- ilvl range and the period to detail in the hover.
 local function bankedCell(char, realWeekId)
   -- "off" silences everywhere, including the Banked column (even when Show all
   -- reveals the dimmed row).
   if char.trackTier == "off" then return nil end
-  -- Confirmed = actual unclaimed loot (hasPendingLoot), shown even with no cached
-  -- range detail (n may be 0). Likely = inferred from a stale alt.
   if char.hasPendingLoot then
     local lo, hi, n = ns.Derived.bankedRange(char)
-    return "confirmed", lo, hi, n, ns.Derived.bankedPeriod(char)
+    if n == 0 then
+      local p = ns.Derived.currentPeriod(char)
+      lo, hi, n = ns.Derived.periodRange(p)
+      return true, lo, hi, n, p
+    end
+    return true, lo, hi, n, ns.Derived.bankedPeriod(char)
   end
-  if realWeekId and ns.Derived.likelyBanked(char, realWeekId) then
+  if realWeekId and ns.Derived.staleBanked(char, realWeekId) then
     local p = ns.Derived.currentPeriod(char)
     local lo, hi, n = ns.Derived.periodRange(p)
-    return "likely", lo, hi, n, p
+    return true, lo, hi, n, p
   end
   return nil
 end
@@ -199,11 +205,11 @@ local function attentionMap()
   return m
 end
 
-local function sortedKeys(attn)
+local function sortedKeys(attn, realWeekId)
   local chars = ns.db.global.characters
-  -- Only confirmed banked loot (red, no deadline) floats to the top. Amber soft
-  -- states (untouched / close-to-unlock / likely-banked) glow in place rather than
-  -- reordering the roster; everything else sorts by ilvl then name.
+  -- Only banked loot (red, no deadline) floats to the top. Amber soft states
+  -- (untouched / close-to-unlock) glow in place rather than reordering the
+  -- roster; everything else sorts by ilvl then name.
   local function rank(key)
     if attn[key] == "red" then return 0 end
     return 1
@@ -211,7 +217,7 @@ local function sortedKeys(attn)
   local show = ns.db.global.settings.showIgnored
   local keys = {}
   for key, char in pairs(chars) do
-    if show or isActive(char) then keys[#keys + 1] = key end
+    if show or isActive(char, realWeekId) then keys[#keys + 1] = key end
   end
   table.sort(keys, function(a, b)
     local ca, cb = chars[a], chars[b]
@@ -435,15 +441,15 @@ function Roster:Refresh()
   local f = self.frame
   local chars = ns.db.global.characters
   local attn = attentionMap()
-  local keys = sortedKeys(attn)
+  -- realWeekId enables the stale-alt banked inference (Derived.staleBanked), used
+  -- both to decide row visibility/dimming and whether the Banked column appears.
+  local secs = C_DateAndTime.GetSecondsUntilWeeklyReset()
+  local realWeekId = secs and ns.Derived.periodKey(time(), secs) or nil
+  local keys = sortedKeys(attn, realWeekId)
   local currentKey = (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
   f.countdown:SetText(resetText())
   f.showAllCheck:SetChecked(ns.db.global.settings.showIgnored and true or false)
 
-  -- The Banked column appears only when some shown character has banked loot
-  -- (confirmed) or is inferred to (a stale alt with unlocked slots last week).
-  local secs = C_DateAndTime.GetSecondsUntilWeeklyReset()
-  local realWeekId = secs and ns.Derived.periodKey(time(), secs) or nil
   local showBanked = false
   for _, key in ipairs(keys) do
     if bankedCell(chars[key], realWeekId) then showBanked = true; break end
@@ -453,7 +459,11 @@ function Roster:Refresh()
 
   for i, key in ipairs(keys) do
     local char = chars[key]
-    local dim = not isActive(char)
+    -- Identity styling (name/ilvl/track columns) tracks whether the character is
+    -- actually tracked (sticky-eligible), independent of banked loot — a below-
+    -- threshold character with real unclaimed loot still reads as "not tracked".
+    local tracked = ns.Derived.effectiveTracked(char)
+    local dim = not tracked
     local row = acquireRow(f, i)
     positionRow(row, geo)
 
@@ -462,22 +472,19 @@ function Roster:Refresh()
       or ("|c%s%s|r"):format(classColor(char.class), char.name or "?"))
     row.ilvlText:SetText(("|cff%s%d|r"):format(dim and "6a6453" or "ffd100", char.ilvl or 0))
 
-    local kind, blo, bhi, bn, bperiod = bankedCell(char, realWeekId)
-    if kind then
-      local core = ns.Format.bankedColumn(blo, bhi, bn)
-      local txt, color, title, note
-      if kind == "confirmed" then
-        txt, color, title = core or ns.L.ROSTER_BANKED_YES, dim and "6a6453" or "f2c24a", ns.L.ROSTER_BANKED_TITLE
-      else  -- likely (inferred): muted amber, "?" prefix, "log in to confirm" note
-        txt = ns.L.ROSTER_MAYBE_PREFIX .. (core or "")
-        color, title, note = dim and "6a6453" or "b9952f", ns.L.ROSTER_MAYBE_TITLE, ns.L.ROSTER_MAYBE_NOTE
-      end
+    local banked, blo, bhi, bn, bperiod = bankedCell(char, realWeekId)
+    if banked then
+      local txt = ns.Format.bankedColumn(blo, bhi, bn) or ns.L.ROSTER_BANKED_YES
+      -- Always full color when there's real banked loot, even on an otherwise-muted
+      -- (below-threshold) row — the loot itself needs attention regardless of whether
+      -- the character is one you're tracking.
+      local color = "f2c24a"
       row.bankedText:SetText(("|cff%s%s|r"):format(color, txt))
       row.bankedFrame:EnableMouse(true)
       row.bankedFrame:SetScript("OnEnter", function(self)
         row.hl:Show()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        fillBankedTooltip(GameTooltip, bperiod, title, note)
+        fillBankedTooltip(GameTooltip, bperiod, ns.L.ROSTER_BANKED_TITLE)
         GameTooltip:Show()
       end)
       row.bankedFrame:SetScript("OnLeave", function() row.hl:Hide(); GameTooltip:Hide() end)
@@ -535,7 +542,11 @@ function Roster:Refresh()
       end)
     end)
 
-    local period = ns.Derived.currentPeriod(char)
+    -- Only show live track progress when the character's own last scan actually
+    -- was this real-time week; a stale alt's last-known period belongs in the
+    -- Banked column (it's an earlier week's earned reward, not this week's
+    -- progress) and would otherwise misread as "done today".
+    local period = (realWeekId and char.currentWeekId == realWeekId) and ns.Derived.currentPeriod(char) or nil
     for _, tk in ipairs(TRACKS) do
       local track = period and period.tracks[tk]
       for j = 1, 3 do
