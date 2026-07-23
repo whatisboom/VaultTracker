@@ -101,8 +101,12 @@ function Broker:OnTooltip(tt)
     tt:AddLine(msg, 0.6, 0.6, 0.6)
   else
     for _, e in ipairs(list) do
-      -- "!" confirmed banked, "?" likely banked (inferred), "-" time-pressure
-      local name = ("%s |c%s%s-%s|r"):format(ns.Format.marker(e), classHex(e.class), e.name, e.realm)
+      -- "!" banked (urgent), "-" time-pressure. A not-tracked character (below your
+      -- seriousness line, surfaced only because of real banked loot) gets a muted
+      -- grey name instead of its class color, so it reads distinctly from a
+      -- character you're actually tracking.
+      local nameColor = e.tracked and classHex(e.class) or "ff6a6453"
+      local name = ("%s |c%s%s-%s|r"):format(ns.Format.marker(e), nameColor, e.name, e.realm)
       local reason = ns.Format.tooltipReason(e, chars[e.key])
       local c = COLORS[e.severity] or COLORS.none
       tt:AddDoubleLine(name, reason, 1, 1, 1, c[1], c[2], c[3])
