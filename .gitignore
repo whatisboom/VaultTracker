@@ -11,4 +11,10 @@ desktop.ini
 # Brainstorm visual-companion mockups (local only)
 .superpowers/
 
+# Design specs and plans are local working files, not project history.
+docs/superpowers/
+
 .worktrees/
+
+# SavedVariables snapshots (real account data), local debugging only.
+.sv-backups/
