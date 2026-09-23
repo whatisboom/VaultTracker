@@ -4,6 +4,36 @@ All notable changes to VaultTracker are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-23
+
+### Added
+- **Equipped gear as a second eligibility signal.** A character's currently equipped
+  gear is now also read for its upgrade tier and folded into eligibility alongside
+  vault-earned rewards. The vault-reward read can silently fail to resolve if item
+  data isn't cached yet at scan time, permanently stalling that character's tracking
+  until its next login; equipped gear has no such risk, so this self-heals any
+  affected character automatically on its next login. The roster tooltip now notes
+  when gear, rather than a vault reward, is what qualified a character.
+- **Muted identity for banked-but-untracked characters**, consistently across the
+  roster window, minimap tooltip, and login chat summary — unclaimed loot on an
+  otherwise-untracked alt is visible but styled distinctly from a tracked character.
+
+### Fixed
+- Vault reward resolution now retries when the game finishes caching an earned
+  item's data, instead of relying solely on fixed 2s/5s delayed rescans that could
+  miss slower-resolving rewards.
+- Stale-banked detection (an alt you haven't logged into since reset, but which had
+  unclaimed loot last seen) is now treated as fact rather than a one-week heuristic —
+  it no longer stops flagging loot after a second missed reset.
+
+### Changed
+- Switched to the shared BoomForge framework for the Ace3/LibDataBroker/LibDBIcon/
+  LibSharedMedia stack; **BoomForge must now be installed and enabled** alongside
+  VaultTracker (previously vendored in-repo).
+- Releases now build and publish via GitHub Actions (tag push triggers packaging,
+  CurseForge upload, and a Discord announcement) instead of CurseForge's own GitHub
+  integration.
+
 ## [0.3.1] - 2026-06-26
 
 ### Added
@@ -112,6 +142,7 @@ actually care about, expressed in the game's own upgrade tiers.
   per-character roster window, and weekly reminders. Fully localized via
   AceLocale-3.0 (enUS base).
 
+[0.4.0]: https://github.com/whatisboom/VaultTracker/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/whatisboom/VaultTracker/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/whatisboom/VaultTracker/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/whatisboom/VaultTracker/compare/v0.2.1...v0.2.2
