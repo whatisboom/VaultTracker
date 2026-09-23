@@ -98,9 +98,40 @@ function VaultTracker:SessionAnnounce()
   end
 end
 
+-- True if the current week has an earned slot whose reward ilvl/tier didn't
+-- resolve yet (item data not cached client-side when it was scanned).
+local function hasUnresolvedRewards(entry)
+  local period = entry and entry.periods and entry.currentWeekId and entry.periods[entry.currentWeekId]
+  if not period then return false end
+  for _, tiers in pairs(period.tracks) do
+    for _, t in ipairs(tiers) do
+      if t.progress >= t.threshold and ((t.rewardIlvl or 0) == 0 or (t.rewardTier or 0) == 0) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 function VaultTracker:Rescan()
-  ns.Scanner:Scan()
+  local entry = ns.Scanner:Scan()
   ns.Broker:Update()
+  if ns.Roster.frame and ns.Roster.frame:IsShown() then
+    ns.Roster:Refresh()
+  end
+  -- Backstop beyond the fixed 2s/5s delays below: if an earned slot's reward
+  -- item still isn't cached, wait for it to actually arrive instead of
+  -- guessing again on a timer.
+  if hasUnresolvedRewards(entry) then
+    self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "OnItemInfoReceived")
+  else
+    self:UnregisterEvent("GET_ITEM_INFO_RECEIVED")
+  end
+end
+
+function VaultTracker:OnItemInfoReceived()
+  self:UnregisterEvent("GET_ITEM_INFO_RECEIVED")
+  self:Rescan()
 end
 
 function VaultTracker:CancelDelayedRescans()

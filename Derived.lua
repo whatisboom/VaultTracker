@@ -269,16 +269,17 @@ function Derived.bankedRange(char)
   return Derived.periodRange(period)
 end
 
--- Heuristic: an alt probably has unclaimed loot we can't confirm. True when the
--- character hasn't been scanned since the most recent reset (its cached period is
--- exactly one week stale) yet had unlocked slots when last seen. Limited to one
--- missed reset, since the game only holds the most recent week's unclaimed loot.
+-- True when an alt hasn't been scanned since its last known week (so we have no
+-- fresh hasPendingLoot read for it) but its last-scanned period had unlocked,
+-- unclaimed slots. Trusted as fact, not a guess: claiming a Great Vault reward
+-- requires actually logging into that character, so nothing could have changed
+-- since the last scan, and Blizzard does not expire unclaimed rewards on reset.
 -- Excludes characters with confirmed pending loot (the "banked" path owns those).
 -- realWeekId = Derived.periodKey(now, secondsToReset).
-function Derived.likelyBanked(char, realWeekId)
+function Derived.staleBanked(char, realWeekId)
   if char.hasPendingLoot then return false end
   local cwk = char.currentWeekId
-  if not cwk or (realWeekId - cwk) ~= WEEK then return false end
+  if not cwk or cwk >= realWeekId then return false end
   local period = char.periods and char.periods[cwk]
   if not period then return false end
   return (Derived.periodSlots(period)) > 0
