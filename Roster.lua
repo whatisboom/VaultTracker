@@ -507,6 +507,8 @@ function Roster:Refresh()
         GameTooltip:AddLine(ns.L.ROSTER_HIDDEN, 0.6, 0.5, 0.4)
       elseif not ns.Derived.effectiveTracked(char) then
         GameTooltip:AddLine(ns.L.ROSTER_NOREWARD, 0.6, 0.5, 0.4)
+      elseif char.eligibleVia == "gear" then
+        GameTooltip:AddLine(ns.L.ROSTER_TRACKED_VIA_GEAR, 0.6, 0.5, 0.4)
       end
       GameTooltip:AddLine(ns.L.ROSTER_RIGHTCLICK, 0.4, 0.4, 0.4)
       GameTooltip:Show()

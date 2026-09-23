@@ -147,6 +147,15 @@ function Derived.observeEligible(prev, bestTier, line)
   return prev == true or Derived.qualifies(bestTier or 0, line)
 end
 
+-- Given this scan's earned-reward tier and equipped-gear tier, and the tracking
+-- line, decide which signal (if either) newly qualifies the character. Vault wins
+-- when both independently clear the line in the same scan (checked first).
+function Derived.eligibilitySource(earnedTier, equippedTier, line)
+  if (earnedTier or 0) >= line then return "vault" end
+  if (equippedTier or 0) >= line then return "gear" end
+  return nil
+end
+
 function Derived.isMaxed(period)
   for _, track in pairs(period.tracks) do
     for _, tier in ipairs(track) do

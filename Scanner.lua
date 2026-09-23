@@ -8,6 +8,15 @@ local TRACKS = {
   world   = Enum.WeeklyRewardChestThresholdType.World,
 }
 
+-- Gear slots worth reading for an equipped-item upgrade tier. Excludes
+-- INVSLOT_AMMO/BODY(shirt)/RANGED(legacy)/TABARD — none carry upgrade tracks.
+local EQUIP_SLOTS = {
+  INVSLOT_HEAD, INVSLOT_NECK, INVSLOT_SHOULDER, INVSLOT_CHEST, INVSLOT_WAIST,
+  INVSLOT_LEGS, INVSLOT_FEET, INVSLOT_WRIST, INVSLOT_HAND,
+  INVSLOT_FINGER1, INVSLOT_FINGER2, INVSLOT_TRINKET1, INVSLOT_TRINKET2,
+  INVSLOT_BACK, INVSLOT_MAINHAND, INVSLOT_OFFHAND,
+}
+
 -- Safely fetch an activity's example reward item link; nil on failure.
 local function rewardLink(activityID)
   local ok, link = pcall(C_WeeklyRewards.GetExampleRewardItemHyperlinks, activityID)
@@ -44,6 +53,19 @@ local function linkTier(link)
     end
   end
   return 0
+end
+
+-- Max upgrade-track tier among currently equipped gear (0 if none/unreadable).
+-- Equipped items are always fully cached client-side, so unlike rewardLink() this
+-- has no "MayReturnNothing" risk — reliable every scan. Reuses linkTier() so the
+-- tier vocabulary matches the vault-reward path exactly.
+local function bestEquippedTier()
+  local best = 0
+  for _, slot in ipairs(EQUIP_SLOTS) do
+    local tier = linkTier(GetInventoryItemLink("player", slot))
+    if tier > best then best = tier end
+  end
+  return best
 end
 
 -- Read one track's tiers, sorted ascending by threshold (slot 1/2/3). Each earned
@@ -112,14 +134,22 @@ function Scanner:Scan()
   -- season change (eligibility resets with it — re-earn after a season rollover).
   local season = C_MythicPlus and C_MythicPlus.GetCurrentSeason and C_MythicPlus.GetCurrentSeason()
   if season and entry.bestTierSeason ~= season then
-    entry.bestTier, entry.bestTierSeason, entry.eligible = 0, season, false
+    entry.bestTier, entry.bestTierSeason, entry.eligible, entry.eligibleVia = 0, season, false, nil
   end
-  entry.bestTier = math.max(entry.bestTier or 0, Derived.bestEarnedTier(period))
+  local earnedTier = Derived.bestEarnedTier(period)
+  local equippedTier = bestEquippedTier()
+  entry.bestTier = math.max(entry.bestTier or 0, earnedTier, equippedTier)
   -- Sticky eligibility (presence in DB = source of truth): once the character has
   -- earned a reward at/above its line this season it stays tracked. effectiveTracked
   -- reads entry.eligible; it never drops live as the line changes.
   local line = Derived.effectiveLine(entry.trackTier, ns.db.global.settings.seriousness)
+  local wasEligible = entry.eligible
   entry.eligible = Derived.observeEligible(entry.eligible, entry.bestTier, line)
+  -- Record which signal is responsible, for the Roster tooltip. Only set the scan
+  -- eligibility first flips true; never cleared except on the season reset above.
+  if entry.eligible and not wasEligible then
+    entry.eligibleVia = Derived.eligibilitySource(earnedTier, equippedTier, line)
+  end
   entry.eligibleAt = nil  -- drop stale field
 
   -- Keep the current period + the single most-recent prior (banked) snapshot, drop

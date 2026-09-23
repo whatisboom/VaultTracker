@@ -102,6 +102,11 @@ do
   eq(Derived.observeEligible(false, 1, 2), false, "observeEligible false below line + prev false")
   eq(Derived.observeEligible(nil, 0, 2), false, "observeEligible nil prev + nothing earned -> false")
 
+  eq(Derived.eligibilitySource(3, 0, 2), "vault", "eligibilitySource: vault clears line alone")
+  eq(Derived.eligibilitySource(0, 3, 2), "gear", "eligibilitySource: gear clears line alone")
+  eq(Derived.eligibilitySource(3, 3, 2), "vault", "eligibilitySource: vault wins when both clear")
+  eq(Derived.eligibilitySource(1, 1, 2), nil, "eligibilitySource: neither clears line -> nil")
+
   local char = F.char({ weekId = 1000, period = partial })
   eq(Derived.currentPeriod(char), partial, "currentPeriod returns the current weekId period")
 
