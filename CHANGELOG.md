@@ -4,6 +4,13 @@ All notable changes to VaultTracker are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-09-25
+
+### Fixed
+- BoomForge is now declared as a required dependency on each CurseForge upload, so
+  the CurseForge app installs it automatically alongside VaultTracker instead of the
+  addon failing to load with "Dependency missing: BoomForge".
+
 ## [0.4.0] - 2026-09-23
 
 ### Added
@@ -142,6 +149,7 @@ actually care about, expressed in the game's own upgrade tiers.
   per-character roster window, and weekly reminders. Fully localized via
   AceLocale-3.0 (enUS base).
 
+[0.4.1]: https://github.com/whatisboom/VaultTracker/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/whatisboom/VaultTracker/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/whatisboom/VaultTracker/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/whatisboom/VaultTracker/compare/v0.2.2...v0.3.0
