@@ -4,6 +4,12 @@
 
 package-as: VaultTracker
 
+# Mark BoomForge as a required dependency on the CurseForge upload (by project
+# slug). `## RequiredDeps` in the .toc only affects the game client; without this,
+# CurseForge and its app don't know to install BoomForge alongside VaultTracker.
+required-dependencies:
+  - boomforge
+
 # Use the hand-written CHANGELOG.md (Keep a Changelog: Added/Changed/Fixed) as the
 # release notes. Without this, the packager generates notes from `git log`, which
 # embeds commit author name/email — keep that PII out of the published changelog.
