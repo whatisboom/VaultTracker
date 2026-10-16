@@ -4,6 +4,13 @@ All notable changes to VaultTracker are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-10-15
+
+### Fixed
+- A character's item level in the roster now updates when you equip or remove gear,
+  instead of staying at the value from your last login or zone change. Eligibility
+  based on equipped gear refreshes at the same time.
+
 ## [0.4.1] - 2026-09-25
 
 ### Fixed
@@ -149,6 +156,7 @@ actually care about, expressed in the game's own upgrade tiers.
   per-character roster window, and weekly reminders. Fully localized via
   AceLocale-3.0 (enUS base).
 
+[0.4.2]: https://github.com/whatisboom/VaultTracker/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/whatisboom/VaultTracker/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/whatisboom/VaultTracker/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/whatisboom/VaultTracker/compare/v0.3.0...v0.3.1
