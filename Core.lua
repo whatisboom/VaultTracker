@@ -44,6 +44,7 @@ function VaultTracker:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnVaultEvent")
   self:RegisterEvent("WEEKLY_REWARDS_UPDATE", "OnVaultEvent")
   self:RegisterEvent("WEEKLY_REWARDS_ITEM_CHANGED", "OnVaultEvent")
+  self:RegisterEvent("PLAYER_AVG_ITEM_LEVEL_UPDATE", "OnItemLevelUpdate")
   -- Re-evaluate each minute so the badge lights up on crossing into the
   -- time window and the reset clock advances.
   self.refreshTimer = self:ScheduleRepeatingTimer(function() ns.Broker:Update() end, 60)
@@ -139,6 +140,16 @@ function VaultTracker:CancelDelayedRescans()
     for _, t in ipairs(self.delayed) do self:CancelTimer(t) end
     self.delayed = nil
   end
+end
+
+-- Gear changes refresh the cached ilvl and equipped tier. The event fires several
+-- times per swap (more with the equipment manager), so coalesce into one rescan.
+function VaultTracker:OnItemLevelUpdate()
+  if self.gearRescan then self:CancelTimer(self.gearRescan) end
+  self.gearRescan = self:ScheduleTimer(function()
+    self.gearRescan = nil
+    self:Rescan()
+  end, 1)
 end
 
 function VaultTracker:OnVaultEvent()
