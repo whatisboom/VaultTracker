@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SRC="$HOME/projects/VaultTracker/"
-DEST="/Applications/World of Warcraft/_retail_/Interface/AddOns/VaultTracker/"
+DEST="/Volumes/Samsung_T5/Games/World of Warcraft/_retail_/Interface/AddOns/VaultTracker/"
 
 rsync -a --delete \
   --exclude='.git/' \
